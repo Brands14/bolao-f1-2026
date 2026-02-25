@@ -91,4 +91,127 @@ def calcular_pontos(palpite, gabarito):
 
 # 3. Menu e Navegação
 st.sidebar.header("Navegação")
-menu = st.sidebar.radio("Ir para:", ["Enviar
+menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Classificações", "Administrador"])
+
+# --- ÁREA: ENVIAR PALPITE ---
+if menu == "Enviar Palpite":
+    usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
+    
+    if usuario_logado:
+        equipa_utilizador = next((equipa for equipa, membros in equipas.items() if usuario_logado in membros), "Sem Equipa")
+        st.write(f"Bem-vindo, **{usuario_logado}**! (🏎️ *{equipa_utilizador}*)")
+        st.header("🇦🇺 GP da Austrália - Corrida")
+        
+        if agora > limite_qualy_aus:
+            st.error("⚠️ Tempo esgotado! O sistema bloqueou novos palpites para este GP.")
+        else:
+            with st.form("form_palpite_corrida"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    pole = st.selectbox("Pole Position:", pilotos)
+                    p1 = st.selectbox("1º Colocado:", pilotos)
+                    p2 = st.selectbox("2º Colocado:", pilotos)
+                    p3 = st.selectbox("3º Colocado:", pilotos)
+                    p4 = st.selectbox("4º Colocado:", pilotos)
+                    p5 = st.selectbox("5º Colocado:", pilotos)
+                with col2:
+                    p6 = st.selectbox("6º Colocado:", pilotos)
+                    p7 = st.selectbox("7º Colocado:", pilotos)
+                    p8 = st.selectbox("8º Colocado:", pilotos)
+                    p9 = st.selectbox("9º Colocado:", pilotos)
+                    p10 = st.selectbox("10º Colocado:", pilotos)
+                    volta_rapida = st.selectbox("Melhor Volta:", pilotos)
+                    primeiro_abandono = st.selectbox("1º Abandono:", pilotos)
+                    mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos)
+                
+                enviado = st.form_submit_button("Guardar Palpites 🏁")
+                
+                if enviado:
+                    dados = {
+                        "GP": "Austrália", "Usuario": usuario_logado, "Equipa": equipa_utilizador,
+                        "Pole": pole, "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
+                        "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
+                        "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono,
+                        "MaisUltrapassagens": mais_ultrapassagens
+                    }
+                    guardar_dados(dados, ARQUIVO_DADOS)
+                    st.success("Palpite registado com sucesso!")
+    else:
+        st.info("Selecione o seu nome no menu lateral para começar.")
+
+# --- ÁREA: CLASSIFICAÇÕES ---
+elif menu == "Classificações":
+    st.header("🏆 Classificações do Campeonato")
+    
+    if os.path.exists(ARQUIVO_DADOS) and os.path.exists(ARQUIVO_GABARITOS):
+        df_palpites = pd.read_csv(ARQUIVO_DADOS)
+        df_gabaritos = pd.read_csv(ARQUIVO_GABARITOS)
+        
+        gabarito_atual = df_gabaritos.iloc[-1]
+        
+        resultados = []
+        for index, row in df_palpites.iterrows():
+            if row['GP'] == gabarito_atual['GP']:
+                pontos = calcular_pontos(row, gabarito_atual)
+                resultados.append({"Usuario": row['Usuario'], "Equipa": row['Equipa'], "Pontos": pontos})
+        
+        if resultados:
+            df_resultados = pd.DataFrame(resultados)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("👤 Geral (Pilotos)")
+                ranking_geral = df_resultados.groupby('Usuario')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
+                ranking_geral.index = range(1, len(ranking_geral) + 1)
+                st.dataframe(ranking_geral, use_container_width=True)
+                
+            with col2:
+                st.subheader("🏎️ Construtores (Equipas)")
+                ranking_equipas = df_resultados.groupby('Equipa')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
+                ranking_equipas.index = range(1, len(ranking_equipas) + 1)
+                st.dataframe(ranking_equipas, use_container_width=True)
+        else:
+            st.warning("Ainda não existem palpites calculados para o último Gabarito Oficial.")
+    else:
+        st.warning("Aguardando inserção de palpites e do Gabarito Oficial para gerar a classificação.")
+
+# --- ÁREA: ADMINISTRADOR ---
+elif menu == "Administrador":
+    senha = st.sidebar.text_input("Palavra-passe:", type="password")
+    
+    if senha == "admin123":
+        st.warning("⚠️ MODO ADMINISTRADOR - Inserir Resultado Oficial")
+        st.header("🇦🇺 Gabarito Oficial - Austrália")
+        
+        with st.form("form_gabarito"):
+            col1, col2 = st.columns(2)
+            with col1:
+                pole = st.selectbox("Pole Position:", pilotos)
+                p1 = st.selectbox("1º Colocado:", pilotos)
+                p2 = st.selectbox("2º Colocado:", pilotos)
+                p3 = st.selectbox("3º Colocado:", pilotos)
+                p4 = st.selectbox("4º Colocado:", pilotos)
+                p5 = st.selectbox("5º Colocado:", pilotos)
+            with col2:
+                p6 = st.selectbox("6º Colocado:", pilotos)
+                p7 = st.selectbox("7º Colocado:", pilotos)
+                p8 = st.selectbox("8º Colocado:", pilotos)
+                p9 = st.selectbox("9º Colocado:", pilotos)
+                p10 = st.selectbox("10º Colocado:", pilotos)
+                volta_rapida = st.selectbox("Melhor Volta:", pilotos)
+                primeiro_abandono = st.selectbox("1º Abandono:", pilotos)
+                mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos)
+                
+            enviar_gabarito = st.form_submit_button("Submeter Gabarito 🏆")
+            
+            if enviar_gabarito:
+                dados_gabarito = {
+                    "GP": "Austrália", "Pole": pole, "P1": p1, "P2": p2, "P3": p3, 
+                    "P4": p4, "P5": p5, "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
+                    "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono,
+                    "MaisUltrapassagens": mais_ultrapassagens
+                }
+                guardar_dados(dados_gabarito, ARQUIVO_GABARITOS)
+                st.success("Gabarito guardado com sucesso! As classificações foram atualizadas.")
+    elif senha != "":
+        st.error("Palavra-passe incorreta.")
