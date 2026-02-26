@@ -35,7 +35,6 @@ equipas = {
     "Equipa 10º": ["Rodolfo Brandão", "George Fleury"]
 }
 
-# NOVA LISTA DE PILOTOS (Grid Atualizado - Ordem Alfabética)
 pilotos = [
     "", "Alex Albon", "Arvid Lindblad", "Carlos Sainz", "Charles Leclerc", 
     "Esteban Ocon", "Fernando Alonso", "Franco Colapinto", "Gabriel Bortoleto", 
@@ -47,7 +46,6 @@ pilotos = [
 
 fuso_br = pytz.timezone('America/Sao_Paulo')
 agora = datetime.now(fuso_br)
-# Simulação de tempo para testes
 limite_qualy_aus = fuso_br.localize(datetime(2026, 3, 15, 1, 59)) 
 
 # 2. Funções do Banco de Dados e Matemática
@@ -128,6 +126,7 @@ if menu == "Enviar Palpite":
                 
                 if enviado:
                     dados = {
+                        "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
                         "GP": "Austrália", "Usuario": usuario_logado, "Equipa": equipa_utilizador,
                         "Pole": pole, "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
                         "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
@@ -180,8 +179,22 @@ elif menu == "Administrador":
     senha = st.sidebar.text_input("Palavra-passe:", type="password")
     
     if senha == "admin123":
-        st.warning("⚠️ MODO ADMINISTRADOR - Inserir Resultado Oficial")
-        st.header("🇦🇺 Gabarito Oficial - Austrália")
+        st.warning("⚠️ MODO ADMINISTRADOR ATIVO")
+        
+        # --- NOVA ÁREA: AUDITORIA DE PALPITES ---
+        st.subheader("🕵️‍♂️ Auditoria: Palpites da Turma")
+        st.write("Aqui pode conferir todos os palpites enviados para validar os cálculos.")
+        if os.path.exists(ARQUIVO_DADOS):
+            df_auditoria = pd.read_csv(ARQUIVO_DADOS)
+            # Mostra a tabela completa no ecrã
+            st.dataframe(df_auditoria, use_container_width=True)
+        else:
+            st.info("Ainda não foram registados palpites no sistema.")
+            
+        st.divider()
+        
+        # --- ÁREA: INSERIR GABARITO ---
+        st.header("🇦🇺 Inserir Gabarito Oficial - Austrália")
         
         with st.form("form_gabarito"):
             col1, col2 = st.columns(2)
