@@ -14,12 +14,13 @@ try:
 except:
     st.title("🏁 Palpites F1 2026")
 
+# Lista de participantes organizada por Ordem Alfabética
 participantes = [
-    "Rodolfo Brandão", "Valério Bimbato", "Jaime Gabriel", "Myke Ribeiro", 
-    "George Fleury", "Fausto Fleury", "Flávio Soares", "Fernanda Fleury",
-    "Henrique Junqueira", "Frederico Gaudie", "Hilton Jacinto", "Fabrício Abe",
-    "Alaerte Fleury", "César Gaudie", "Delvânia Belo", "Maikon Miranda",
-    "Ronaldo Fleury", "Emilio Jacinto", "Syllas Araújo", "Luciano (Medalha)"
+    "Alaerte Fleury", "César Gaudie", "Delvânia Belo", "Emilio Jacinto", 
+    "Fabrício Abe", "Fausto Fleury", "Fernanda Fleury", "Flávio Soares", 
+    "Frederico Gaudie", "George Fleury", "Henrique Junqueira", "Hilton Jacinto", 
+    "Jaime Gabriel", "Luciano (Medalha)", "Maikon Miranda", "Myke Ribeiro", 
+    "Rodolfo Brandão", "Ronaldo Fleury", "Syllas Araújo", "Valério Bimbato"
 ]
 
 equipas = {
@@ -133,7 +134,6 @@ if menu == "Enviar Palpite":
         with col_gp:
             gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps)
             
-        # A MÁGICA ACONTECE AQUI: Define as opções baseado no GP selecionado
         opcoes_sessao = ["Corrida Principal", "Corrida Sprint"] if gp_selecionado in sprint_gps else ["Corrida Principal"]
         
         with col_tipo:
@@ -270,7 +270,6 @@ elif menu == "Administrador":
         with col_gp:
             gp_admin = st.selectbox("GP do Gabarito:", lista_gps)
             
-        # O Admin também só vê Sprint se o GP tiver Sprint
         opcoes_admin = ["Corrida Principal", "Corrida Sprint"] if gp_admin in sprint_gps else ["Corrida Principal"]
         
         with col_tipo:
