@@ -35,7 +35,7 @@ equipas = {
     "Equipa 10º": ["Rodolfo Brandão", "George Fleury"]
 }
 
-# NOVA LISTA DE PILOTOS (Organizada por Equipes conforme sua lista)
+# Pilotos (Organizados por Equipes)
 pilotos = [
     "", 
     "Max Verstappen", "Isack Hadjar",
@@ -59,6 +59,9 @@ lista_gps = [
     "Bélgica", "Hungria", "Holanda", "Itália", "Azerbaijão", "Singapura", 
     "EUA (Austin)", "México", "Brasil", "Las Vegas", "Catar", "Abu Dhabi"
 ]
+
+# GPs que têm Corrida Sprint (Atualizado 2026)
+sprint_gps = ["China", "Miami", "Canadá", "Reino Unido", "Holanda", "Singapura"]
 
 fuso_br = pytz.timezone('America/Sao_Paulo')
 agora = datetime.now(fuso_br)
@@ -129,8 +132,12 @@ if menu == "Enviar Palpite":
         col_gp, col_tipo = st.columns(2)
         with col_gp:
             gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps)
+            
+        # A MÁGICA ACONTECE AQUI: Define as opções baseado no GP selecionado
+        opcoes_sessao = ["Corrida Principal", "Corrida Sprint"] if gp_selecionado in sprint_gps else ["Corrida Principal"]
+        
         with col_tipo:
-            tipo_sessao = st.radio("Tipo de Sessão:", ["Corrida Principal", "Corrida Sprint"], horizontal=True)
+            tipo_sessao = st.radio("Tipo de Sessão:", opcoes_sessao, horizontal=True)
         
         st.header(f"🏁 GP: {gp_selecionado} - {tipo_sessao}")
         
@@ -262,8 +269,12 @@ elif menu == "Administrador":
         col_gp, col_tipo = st.columns(2)
         with col_gp:
             gp_admin = st.selectbox("GP do Gabarito:", lista_gps)
+            
+        # O Admin também só vê Sprint se o GP tiver Sprint
+        opcoes_admin = ["Corrida Principal", "Corrida Sprint"] if gp_admin in sprint_gps else ["Corrida Principal"]
+        
         with col_tipo:
-            tipo_admin = st.radio("Sessão do Gabarito:", ["Corrida Principal", "Corrida Sprint"], horizontal=True)
+            tipo_admin = st.radio("Sessão do Gabarito:", opcoes_admin, horizontal=True)
         
         if tipo_admin == "Corrida Principal":
             with st.form("form_gabarito_corrida"):
