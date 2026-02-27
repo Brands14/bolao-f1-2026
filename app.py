@@ -22,7 +22,7 @@ participantes = [
     "Rodolfo Brandão", "Ronaldo Fleury", "Syllas Araújo", "Valério Bimbato"
 ]
 
-# DICIONÁRIO DE SEGURANÇA: Substitua pelos e-mails reais de cada um
+# DICIONÁRIO DE SEGURANÇA: Substitua pelos e-mails reais de cada um antes de salvar!
 emails_autorizados = {
     "Alaerte Fleury": "alaertefleury@hotmail.com",
     "César Gaudie": "c3sargaudie@gmail.com",
@@ -44,19 +44,21 @@ emails_autorizados = {
     "Ronaldo Fleury": "ronaldofleury18@gmail.com",
     "Syllas Araújo": "sylaopoim@gmail.com",
     "Valério Bimbato": "bimbatovalerio2@gmail.com"
+
 }
 
-equipas = {
-    "Equipa 1º": ["Fabrício Abe", "Fausto Fleury"],
-    "Equipa 2º": ["Myke Ribeiro", "Luciano (Medalha)"],
-    "Equipa 3º": ["César Gaudie", "Ronaldo Fleury"],
-    "Equipa 4º": ["Valério Bimbato", "Syllas Araújo"],
-    "Equipa 5º": ["Frederico Gaudie", "Emilio Jacinto"],
-    "Equipa 6º": ["Fernanda Fleury", "Henrique Junqueira"],
-    "Equipa 7º": ["Jaime Gabriel", "Hilton Jacinto"],
-    "Equipa 8º": ["Delvânia Belo", "Maikon Miranda"],
-    "Equipa 9º": ["Alaerte Fleury", "Flávio Soares"],
-    "Equipa 10º": ["Rodolfo Brandão", "George Fleury"]
+# Equipes formatadas com o número e os primeiros nomes
+equipes = {
+    "Equipe 1º Fabrício e Fausto": ["Fabrício Abe", "Fausto Fleury"],
+    "Equipe 2º Myke e Luciano": ["Myke Ribeiro", "Luciano (Medalha)"],
+    "Equipe 3º César e Ronaldo": ["César Gaudie", "Ronaldo Fleury"],
+    "Equipe 4º Valério e Syllas": ["Valério Bimbato", "Syllas Araújo"],
+    "Equipe 5º Frederico e Emilio": ["Frederico Gaudie", "Emilio Jacinto"],
+    "Equipe 6º Fernanda e Henrique": ["Fernanda Fleury", "Henrique Junqueira"],
+    "Equipe 7º Jaime e Hilton": ["Jaime Gabriel", "Hilton Jacinto"],
+    "Equipe 8º Delvânia e Maikon": ["Delvânia Belo", "Maikon Miranda"],
+    "Equipe 9º Alaerte e Flávio": ["Alaerte Fleury", "Flávio Soares"],
+    "Equipe 10º Rodolfo e George": ["Rodolfo Brandão", "George Fleury"]
 }
 
 pilotos = [
@@ -146,8 +148,8 @@ if menu == "Enviar Palpite":
     usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
     
     if usuario_logado:
-        equipa_utilizador = next((equipa for equipa, membros in equipas.items() if usuario_logado in membros), "Sem Equipa")
-        st.write(f"Bem-vindo, **{usuario_logado}**! (🏎️ *{equipa_utilizador}*)")
+        equipe_usuario = next((equipe for equipe, membros in equipes.items() if usuario_logado in membros), "Sem Equipe")
+        st.write(f"Bem-vindo, **{usuario_logado}**! (🏎️ *{equipe_usuario}*)")
         
         col_gp, col_tipo = st.columns(2)
         with col_gp:
@@ -184,23 +186,22 @@ if menu == "Enviar Palpite":
                 st.markdown("🔒 **Assinatura de Segurança**")
                 email_confirmacao = st.text_input("Digite seu E-mail cadastrado para validar o palpite:", type="password")
                 
-                enviado = st.form_submit_button("Guardar Palpite da Corrida 🏁")
+                enviado = st.form_submit_button("Salvar Palpite da Corrida 🏁")
                 
                 if enviado:
-                    # Verifica se o e-mail digitado bate com o e-mail do dicionário
                     email_correto = emails_autorizados.get(usuario_logado, "").strip().lower()
                     email_digitado = email_confirmacao.strip().lower()
                     
                     if email_digitado == email_correto and email_correto != "":
                         dados = {
                             "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
-                            "GP": gp_selecionado, "Tipo": tipo_sessao, "Usuario": usuario_logado, "Equipa": equipa_utilizador,
+                            "GP": gp_selecionado, "Tipo": tipo_sessao, "Usuario": usuario_logado, "Equipe": equipe_usuario,
                             "Pole": pole, "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
                             "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
                             "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono, "MaisUltrapassagens": mais_ultrapassagens
                         }
                         guardar_dados(dados, ARQUIVO_DADOS)
-                        st.success(f"Autenticação confirmada! Palpite para a {tipo_sessao} do GP {gp_selecionado} registado com sucesso!")
+                        st.success(f"Autenticação confirmada! Palpite para a {tipo_sessao} do GP {gp_selecionado} registrado com sucesso!")
                     else:
                         st.error("🚫 Acesso Negado: O e-mail informado não corresponde ao usuário selecionado. O palpite NÃO foi salvo.")
                     
@@ -223,7 +224,7 @@ if menu == "Enviar Palpite":
                 st.markdown("🔒 **Assinatura de Segurança**")
                 email_confirmacao = st.text_input("Digite seu E-mail cadastrado para validar o palpite:", type="password")
                 
-                enviado_sprint = st.form_submit_button("Guardar Palpite da Sprint ⏱️")
+                enviado_sprint = st.form_submit_button("Salvar Palpite da Sprint ⏱️")
                 
                 if enviado_sprint:
                     email_correto = emails_autorizados.get(usuario_logado, "").strip().lower()
@@ -232,20 +233,20 @@ if menu == "Enviar Palpite":
                     if email_digitado == email_correto and email_correto != "":
                         dados = {
                             "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
-                            "GP": gp_selecionado, "Tipo": tipo_sessao, "Usuario": usuario_logado, "Equipa": equipa_utilizador,
+                            "GP": gp_selecionado, "Tipo": tipo_sessao, "Usuario": usuario_logado, "Equipe": equipe_usuario,
                             "Pole": pole, "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
                             "P6": p6, "P7": p7, "P8": p8, "P9": "", "P10": "",
                             "VoltaRapida": "", "PrimeiroAbandono": "", "MaisUltrapassagens": ""
                         }
                         guardar_dados(dados, ARQUIVO_DADOS)
-                        st.success(f"Autenticação confirmada! Palpite para a {tipo_sessao} do GP {gp_selecionado} registado com sucesso!")
+                        st.success(f"Autenticação confirmada! Palpite para a {tipo_sessao} do GP {gp_selecionado} registrado com sucesso!")
                     else:
                         st.error("🚫 Acesso Negado: O e-mail informado não corresponde ao usuário selecionado. O palpite NÃO foi salvo.")
 
     else:
         st.info("Selecione o seu nome no menu lateral para começar.")
 
-# --- ÁREA: CLASSIFICAÇÕES E ADMINISTRADOR SEGUEM IGUAIS ---
+# --- ÁREA: CLASSIFICAÇÕES ---
 elif menu == "Classificações":
     st.header("🏆 Classificações do Campeonato F1 2026")
     
@@ -269,7 +270,7 @@ elif menu == "Classificações":
                 else:
                     pontos = calcular_pontos_sprint(row_p, gabarito_oficial)
                     
-                resultados.append({"Usuario": row_p['Usuario'], "Equipa": row_p['Equipa'], "Pontos": pontos})
+                resultados.append({"Usuario": row_p['Usuario'], "Equipe": row_p.get('Equipe', 'Sem Equipe'), "Pontos": pontos})
         
         if resultados:
             df_resultados = pd.DataFrame(resultados)
@@ -283,7 +284,7 @@ elif menu == "Classificações":
                 
             with col2:
                 st.subheader("🏎️ Mundial de Construtores (Equipes)")
-                ranking_equipas = df_resultados.groupby('Equipa')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
+                ranking_equipas = df_resultados.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
                 ranking_equipas.index = range(1, len(ranking_equipas) + 1)
                 st.dataframe(ranking_equipas, use_container_width=True)
         else:
@@ -291,10 +292,11 @@ elif menu == "Classificações":
     else:
         st.warning("Aguardando inserção de palpites e Gabaritos Oficiais para gerar a classificação.")
 
+# --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
-    senha = st.sidebar.text_input("Palavra-passe:", type="password")
+    senha = st.sidebar.text_input("Senha de Diretor de Prova:", type="password")
     
-    if senha == "admin123":
+    if senha == "fleury1475":
         st.warning("⚠️ MODO ADMINISTRADOR ATIVO")
         
         st.subheader("🕵️‍♂️ Auditoria: Palpites da Turma")
@@ -302,7 +304,7 @@ elif menu == "Administrador":
             df_auditoria = pd.read_csv(ARQUIVO_DADOS)
             st.dataframe(df_auditoria, use_container_width=True)
         else:
-            st.info("Ainda não foram registados palpites no sistema.")
+            st.info("Ainda não foram registrados palpites no sistema.")
             
         st.divider()
         st.header("🏆 Inserir Gabarito Oficial")
@@ -344,7 +346,7 @@ elif menu == "Administrador":
                         "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono, "MaisUltrapassagens": mais_ultrapassagens
                     }
                     guardar_dados(dados_gabarito, ARQUIVO_GABARITOS)
-                    st.success("Gabarito da Corrida guardado! As classificações foram atualizadas.")
+                    st.success("Gabarito da Corrida salvo! As classificações foram atualizadas.")
                     
         elif tipo_admin == "Corrida Sprint":
              with st.form("form_gabarito_sprint"):
@@ -369,7 +371,7 @@ elif menu == "Administrador":
                         "VoltaRapida": "", "PrimeiroAbandono": "", "MaisUltrapassagens": ""
                     }
                     guardar_dados(dados_gabarito, ARQUIVO_GABARITOS)
-                    st.success("Gabarito da Sprint guardado! As classificações foram atualizadas.")
+                    st.success("Gabarito da Sprint salvo! As classificações foram atualizadas.")
                     
     elif senha != "":
-        st.error("Palavra-passe incorreta.")
+        st.error("Senha incorreta.")
