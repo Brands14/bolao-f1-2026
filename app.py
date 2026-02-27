@@ -6,8 +6,9 @@ import os
 
 # 1. Configurações Iniciais
 st.set_page_config(page_title="Palpites F1 2026", layout="wide")
-ARQUIVO_DADOS = "palpites_db.csv"
-ARQUIVO_GABARITOS = "gabaritos_db.csv"
+# A MÁGICA AQUI: Nomes novos para forçar o sistema a criar bancos de dados limpos!
+ARQUIVO_DADOS = "palpites_oficial_2026.csv"
+ARQUIVO_GABARITOS = "gabaritos_oficial_2026.csv"
 
 try:
     st.image("WhatsApp Image 2026-02-24 at 16.12.18.png", use_container_width=True)
@@ -44,7 +45,7 @@ emails_autorizados = {
     "Ronaldo Fleury": "ronaldofleury18@gmail.com",
     "Syllas Araújo": "sylaopoim@gmail.com",
     "Valério Bimbato": "bimbatovalerio2@gmail.com"
-
+    
 }
 
 # Equipes formatadas com o número e os primeiros nomes
@@ -375,4 +376,3 @@ elif menu == "Administrador":
                     
     elif senha != "":
         st.error("Senha incorreta.")
-
