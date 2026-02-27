@@ -14,7 +14,6 @@ try:
 except:
     st.title("🏁 Palpites F1 2026")
 
-# Lista de participantes organizada por Ordem Alfabética
 participantes = [
     "Alaerte Fleury", "César Gaudie", "Delvânia Belo", "Emilio Jacinto", 
     "Fabrício Abe", "Fausto Fleury", "Fernanda Fleury", "Flávio Soares", 
@@ -22,6 +21,30 @@ participantes = [
     "Jaime Gabriel", "Luciano (Medalha)", "Maikon Miranda", "Myke Ribeiro", 
     "Rodolfo Brandão", "Ronaldo Fleury", "Syllas Araújo", "Valério Bimbato"
 ]
+
+# DICIONÁRIO DE SEGURANÇA: Substitua pelos e-mails reais de cada um
+emails_autorizados = {
+    "Alaerte Fleury": "alaertefleury@hotmail.com",
+    "César Gaudie": "c3sargaudie@gmail.com",
+    "Delvânia Belo": "del.gomes04@gmail.com",
+    "Emilio Jacinto": "emiliopaja@gmail.com",
+    "Fabrício Abe": "fabricio.fleury84@gmail.com",
+    "Fausto Fleury": "faustofleury.perito@gmail.com",
+    "Fernanda Fleury": "fefleury17@gmail.com",
+    "Flávio Soares": "flaviosoaresparente@gmail.com",
+    "Frederico Gaudie": "fredericofleury@gmail.com",
+    "George Fleury": "gfleury@gmail.com",
+    "Henrique Junqueira": "amtelegas@gmail.com",
+    "Hilton Jacinto": "hiltonlpj2@hotmail.com",
+    "Jaime Gabriel": "jaimesofiltrosgyn@gmail.com",
+    "Luciano (Medalha)": "luciano.pallada@terra.com.br",
+    "Maikon Miranda": "maikonmiranda@gmail.com",
+    "Myke Ribeiro": "mribeiro3088@gmail.com",
+    "Rodolfo Brandão": "rodolfo.fleury@gmail.com",
+    "Ronaldo Fleury": "ronaldofleury18@gmail.com",
+    "Syllas Araújo": "sylaopoim@gmail.com",
+    "Valério Bimbato": "bimbatovalerio2@gmail.com"
+}
 
 equipas = {
     "Equipa 1º": ["Fabrício Abe", "Fausto Fleury"],
@@ -36,7 +59,6 @@ equipas = {
     "Equipa 10º": ["Rodolfo Brandão", "George Fleury"]
 }
 
-# Pilotos (Organizados por Equipes)
 pilotos = [
     "", 
     "Max Verstappen", "Isack Hadjar",
@@ -53,7 +75,6 @@ pilotos = [
     "Nenhum / Outro"
 ]
 
-# Calendário 2026
 lista_gps = [
     "Austrália", "China", "Japão", "Bahrein", "Arábia Saudita", "Miami", 
     "Emília-Romanha", "Mônaco", "Canadá", "Espanha", "Áustria", "Reino Unido", 
@@ -61,11 +82,9 @@ lista_gps = [
     "EUA (Austin)", "México", "Brasil", "Las Vegas", "Catar", "Abu Dhabi"
 ]
 
-# GPs que têm Corrida Sprint (Atualizado 2026)
 sprint_gps = ["China", "Miami", "Canadá", "Reino Unido", "Holanda", "Singapura"]
 
 fuso_br = pytz.timezone('America/Sao_Paulo')
-agora = datetime.now(fuso_br)
 
 # 2. Funções do Banco de Dados e Matemática
 def guardar_dados(dados, arquivo):
@@ -161,17 +180,29 @@ if menu == "Enviar Palpite":
                     primeiro_abandono = st.selectbox("1º Abandono:", pilotos)
                     mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos)
                 
+                st.divider()
+                st.markdown("🔒 **Assinatura de Segurança**")
+                email_confirmacao = st.text_input("Digite seu E-mail cadastrado para validar o palpite:", type="password")
+                
                 enviado = st.form_submit_button("Guardar Palpite da Corrida 🏁")
+                
                 if enviado:
-                    dados = {
-                        "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
-                        "GP": gp_selecionado, "Tipo": tipo_sessao, "Usuario": usuario_logado, "Equipa": equipa_utilizador,
-                        "Pole": pole, "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
-                        "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
-                        "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono, "MaisUltrapassagens": mais_ultrapassagens
-                    }
-                    guardar_dados(dados, ARQUIVO_DADOS)
-                    st.success(f"Palpite para a {tipo_sessao} do GP {gp_selecionado} registado com sucesso!")
+                    # Verifica se o e-mail digitado bate com o e-mail do dicionário
+                    email_correto = emails_autorizados.get(usuario_logado, "").strip().lower()
+                    email_digitado = email_confirmacao.strip().lower()
+                    
+                    if email_digitado == email_correto and email_correto != "":
+                        dados = {
+                            "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
+                            "GP": gp_selecionado, "Tipo": tipo_sessao, "Usuario": usuario_logado, "Equipa": equipa_utilizador,
+                            "Pole": pole, "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
+                            "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
+                            "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono, "MaisUltrapassagens": mais_ultrapassagens
+                        }
+                        guardar_dados(dados, ARQUIVO_DADOS)
+                        st.success(f"Autenticação confirmada! Palpite para a {tipo_sessao} do GP {gp_selecionado} registado com sucesso!")
+                    else:
+                        st.error("🚫 Acesso Negado: O e-mail informado não corresponde ao usuário selecionado. O palpite NÃO foi salvo.")
                     
         elif tipo_sessao == "Corrida Sprint":
             with st.form("form_palpite_sprint"):
@@ -188,22 +219,33 @@ if menu == "Enviar Palpite":
                     p7 = st.selectbox("7º Colocado:", pilotos)
                     p8 = st.selectbox("8º Colocado:", pilotos)
                     
+                st.divider()
+                st.markdown("🔒 **Assinatura de Segurança**")
+                email_confirmacao = st.text_input("Digite seu E-mail cadastrado para validar o palpite:", type="password")
+                
                 enviado_sprint = st.form_submit_button("Guardar Palpite da Sprint ⏱️")
+                
                 if enviado_sprint:
-                    dados = {
-                        "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
-                        "GP": gp_selecionado, "Tipo": tipo_sessao, "Usuario": usuario_logado, "Equipa": equipa_utilizador,
-                        "Pole": pole, "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
-                        "P6": p6, "P7": p7, "P8": p8, "P9": "", "P10": "",
-                        "VoltaRapida": "", "PrimeiroAbandono": "", "MaisUltrapassagens": ""
-                    }
-                    guardar_dados(dados, ARQUIVO_DADOS)
-                    st.success(f"Palpite para a {tipo_sessao} do GP {gp_selecionado} registado com sucesso!")
+                    email_correto = emails_autorizados.get(usuario_logado, "").strip().lower()
+                    email_digitado = email_confirmacao.strip().lower()
+                    
+                    if email_digitado == email_correto and email_correto != "":
+                        dados = {
+                            "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
+                            "GP": gp_selecionado, "Tipo": tipo_sessao, "Usuario": usuario_logado, "Equipa": equipa_utilizador,
+                            "Pole": pole, "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
+                            "P6": p6, "P7": p7, "P8": p8, "P9": "", "P10": "",
+                            "VoltaRapida": "", "PrimeiroAbandono": "", "MaisUltrapassagens": ""
+                        }
+                        guardar_dados(dados, ARQUIVO_DADOS)
+                        st.success(f"Autenticação confirmada! Palpite para a {tipo_sessao} do GP {gp_selecionado} registado com sucesso!")
+                    else:
+                        st.error("🚫 Acesso Negado: O e-mail informado não corresponde ao usuário selecionado. O palpite NÃO foi salvo.")
 
     else:
         st.info("Selecione o seu nome no menu lateral para começar.")
 
-# --- ÁREA: CLASSIFICAÇÕES ---
+# --- ÁREA: CLASSIFICAÇÕES E ADMINISTRADOR SEGUEM IGUAIS ---
 elif menu == "Classificações":
     st.header("🏆 Classificações do Campeonato F1 2026")
     
@@ -249,7 +291,6 @@ elif menu == "Classificações":
     else:
         st.warning("Aguardando inserção de palpites e Gabaritos Oficiais para gerar a classificação.")
 
-# --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
     senha = st.sidebar.text_input("Palavra-passe:", type="password")
     
