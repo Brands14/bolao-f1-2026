@@ -24,26 +24,26 @@ participantes = [
 
 # DICIONÁRIO DE SEGURANÇA: Substitua pelos e-mails reais!
 emails_autorizados = {
-    "Alaerte Fleury": "alaerte@email.com",
-    "César Gaudie": "cesar@email.com",
-    "Delvânia Belo": "delvania@email.com",
-    "Emilio Jacinto": "emilio@email.com",
-    "Fabrício Abe": "fabricio@email.com",
-    "Fausto Fleury": "fausto@email.com",
-    "Fernanda Fleury": "fernanda@email.com",
-    "Flávio Soares": "flavio@email.com",
-    "Frederico Gaudie": "frederico@email.com",
-    "George Fleury": "george@email.com",
-    "Henrique Junqueira": "henrique@email.com",
-    "Hilton Jacinto": "hilton@email.com",
-    "Jaime Gabriel": "jaime@email.com",
-    "Luciano (Medalha)": "luciano@email.com",
-    "Maikon Miranda": "maikon@email.com",
-    "Myke Ribeiro": "myke@email.com",
-    "Rodolfo Brandão": "rodolfo@email.com",
-    "Ronaldo Fleury": "ronaldo@email.com",
-    "Syllas Araújo": "syllas@email.com",
-    "Valério Bimbato": "valerio@email.com"
+    "Alaerte Fleury": "alaertefleury@hotmail.com",
+    "César Gaudie": "c3sargaudie@gmail.com",
+    "Delvânia Belo": "del.gomes04@gmail.com",
+    "Emilio Jacinto": "emiliopaja@gmail.com",
+    "Fabrício Abe": "fabricio.fleury84@gmail.com",
+    "Fausto Fleury": "faustofleury.perito@gmail.com",
+    "Fernanda Fleury": "fefleury17@gmail.com",
+    "Flávio Soares": "flaviosoaresparente@gmail.com",
+    "Frederico Gaudie": "fredericofleury@gmail.com",
+    "George Fleury": "gfleury@gmail.com",
+    "Henrique Junqueira": "amtelegas@gmail.com",
+    "Hilton Jacinto": "hiltonlpj2@hotmail.com",
+    "Jaime Gabriel": "jaimesofiltrosgyn@gmail.comm",
+    "Luciano (Medalha)": "luciano.pallada@terra.com.br",
+    "Maikon Miranda": "maikonmiranda@gmail.com",
+    "Myke Ribeiro": "mribeiro3088@gmail.com",
+    "Rodolfo Brandão": "rodolfo.fleury@gmail.com",
+    "Ronaldo Fleury": "ronaldofleury18@gmail.com",
+    "Syllas Araújo": "sylaopoim@gmail.com",
+    "Valério Bimbato": "bimbatovalerio2@gmail.com"
 }
 
 equipes = {
@@ -364,3 +364,4 @@ elif menu == "Administrador":
                     
     elif senha != "":
         st.error("Senha incorreta.")
+
