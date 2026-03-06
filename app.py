@@ -10,7 +10,7 @@ ARQUIVO_DADOS = "palpites_oficial_2026_v2.csv"
 ARQUIVO_GABARITOS = "gabaritos_oficial_2026_v2.csv"
 
 try:
-    st.image("WhatsApp Image 2026-02-24 at 16.12.18.png", use_container_width=True)
+    st.image("WhatsApp Image 2026-02-24 at 16.12.18.jpeg", use_container_width=True)
 except:
     st.title("🏁 Palpites F1 2026")
 
@@ -158,7 +158,6 @@ if menu == "Enviar Palpite":
         with col_gp:
             gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps)
             
-        # Opções Dinâmicas de Sessão
         if gp_selecionado in sprint_gps:
             opcoes_sessao = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"]
         else:
@@ -170,11 +169,9 @@ if menu == "Enviar Palpite":
         st.header(f"🏁 GP: {gp_selecionado} - {tipo_sessao}")
         
         with st.form("form_palpite"):
-            # Variáveis vazias por padrão
             pole = p1 = p2 = p3 = p4 = p5 = p6 = p7 = p8 = p9 = p10 = ""
             volta_rapida = primeiro_abandono = mais_ultrapassagens = ""
             
-            # Renderiza apenas os campos necessários para a sessão escolhida
             if "Pole" in tipo_sessao:
                 st.info("📌 Palpite apenas para a Pole Position desta sessão.")
                 pole = st.selectbox("Pole Position:", pilotos)
@@ -248,6 +245,7 @@ elif menu == "Classificações":
         
         resultados = []
         
+        # Prepara a pontuação linha por linha
         for index_p, row_p in df_palpites.iterrows():
             gp = row_p.get('GP', '')
             tipo = row_p.get('Tipo', '')
@@ -257,23 +255,38 @@ elif menu == "Classificações":
             if not gabarito_match.empty:
                 gabarito_oficial = gabarito_match.iloc[-1]
                 pontos = calcular_pontos_sessao(row_p, gabarito_oficial)
-                resultados.append({"Usuario": row_p['Usuario'], "Equipe": row_p.get('Equipe', 'Sem Equipe'), "Pontos": pontos})
+                # O Segredo está aqui: adicionei a coluna 'GP' aos resultados da memória
+                resultados.append({"Usuario": row_p['Usuario'], "Equipe": row_p.get('Equipe', 'Sem Equipe'), "Pontos": pontos, "GP": gp})
         
         if resultados:
             df_resultados = pd.DataFrame(resultados)
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("👤 Mundial de Pilotos (Geral)")
-                ranking_geral = df_resultados.groupby('Usuario')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                ranking_geral.index = range(1, len(ranking_geral) + 1)
-                st.dataframe(ranking_geral, use_container_width=True)
-                
-            with col2:
-                st.subheader("🏎️ Mundial de Construtores (Equipes)")
-                ranking_equipas = df_resultados.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                ranking_equipas.index = range(1, len(ranking_equipas) + 1)
-                st.dataframe(ranking_equipas, use_container_width=True)
+            # --- NOVO FILTRO DE CLASSIFICAÇÃO POR GP ---
+            st.markdown("### 🔍 Filtro de Resultados")
+            filtro_classificacao = st.selectbox("Selecione a visualização desejada:", ["Geral (Campeonato Completo)"] + lista_gps)
+            
+            if filtro_classificacao != "Geral (Campeonato Completo)":
+                df_resultados = df_resultados[df_resultados["GP"] == filtro_classificacao]
+                st.subheader(f"📊 Resultado Específico: GP de {filtro_classificacao}")
+            else:
+                st.subheader("📊 Classificação Geral do Campeonato")
+            # -------------------------------------------
+            
+            if not df_resultados.empty:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**👤 Mundial de Pilotos**")
+                    ranking_geral = df_resultados.groupby('Usuario')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
+                    ranking_geral.index = range(1, len(ranking_geral) + 1)
+                    st.dataframe(ranking_geral, use_container_width=True)
+                    
+                with col2:
+                    st.markdown("**🏎️ Mundial de Construtores**")
+                    ranking_equipas = df_resultados.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
+                    ranking_equipas.index = range(1, len(ranking_equipas) + 1)
+                    st.dataframe(ranking_equipas, use_container_width=True)
+            else:
+                st.warning(f"Ainda não há pontuações calculadas para o {filtro_classificacao}. Verifique se o gabarito já foi lançado.")
         else:
             st.warning("Ainda não existem Gabaritos Oficiais para calcular as pontuações dos palpites inseridos.")
     else:
@@ -292,7 +305,6 @@ elif menu == "Administrador":
         if os.path.exists(ARQUIVO_DADOS):
             df_auditoria = pd.read_csv(ARQUIVO_DADOS)
             
-            # FILTRO DE AUDITORIA
             if filtro_gp != "Todos os GPs":
                 df_auditoria = df_auditoria[df_auditoria["GP"] == filtro_gp]
                 
@@ -300,20 +312,17 @@ elif menu == "Administrador":
         else:
             st.info("Ainda não foram registrados palpites no sistema.")
             
-        # --- NOVO BLOCO: MOSTRAR GABARITOS OFICIAIS ---
         st.divider()
         st.subheader("📋 Gabaritos Oficiais Registrados")
         if os.path.exists(ARQUIVO_GABARITOS):
             df_gabaritos_view = pd.read_csv(ARQUIVO_GABARITOS)
             
-            # Aplica o mesmo filtro aos gabaritos
             if filtro_gp != "Todos os GPs":
                 df_gabaritos_view = df_gabaritos_view[df_gabaritos_view["GP"] == filtro_gp]
                 
             st.dataframe(df_gabaritos_view, use_container_width=True)
         else:
             st.info("Nenhum gabarito oficial foi registrado ainda.")
-        # ----------------------------------------------
             
         st.divider()
         st.header("🏆 Inserir Gabarito Oficial")
@@ -380,4 +389,3 @@ elif menu == "Administrador":
                     
     elif senha != "":
         st.error("Senha incorreta.")
-
