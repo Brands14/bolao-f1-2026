@@ -6,7 +6,7 @@ import os
 
 # 1. Configurações Iniciais
 st.set_page_config(page_title="Palpites F1 2026", layout="wide")
-ARQUIVO_DADOS = "palpites_oficial_2026_v2.csv" # Nome novo para forçar um banco de dados limpo
+ARQUIVO_DADOS = "palpites_oficial_2026_v2.csv" 
 ARQUIVO_GABARITOS = "gabaritos_oficial_2026_v2.csv"
 
 try:
@@ -286,18 +286,34 @@ elif menu == "Administrador":
     if senha == "fleury1475":
         st.warning("⚠️ MODO ADMINISTRADOR ATIVO")
         
+        filtro_gp = st.selectbox("Filtrar por Grande Prêmio:", ["Todos os GPs"] + lista_gps)
+        
         st.subheader("🕵️‍♂️ Auditoria: Palpites da Turma")
         if os.path.exists(ARQUIVO_DADOS):
             df_auditoria = pd.read_csv(ARQUIVO_DADOS)
             
-            # NOVO FILTRO DE AUDITORIA
-            filtro_gp = st.selectbox("Filtrar por Grande Prêmio:", ["Todos os GPs"] + lista_gps)
+            # FILTRO DE AUDITORIA
             if filtro_gp != "Todos os GPs":
                 df_auditoria = df_auditoria[df_auditoria["GP"] == filtro_gp]
                 
             st.dataframe(df_auditoria, use_container_width=True)
         else:
             st.info("Ainda não foram registrados palpites no sistema.")
+            
+        # --- NOVO BLOCO: MOSTRAR GABARITOS OFICIAIS ---
+        st.divider()
+        st.subheader("📋 Gabaritos Oficiais Registrados")
+        if os.path.exists(ARQUIVO_GABARITOS):
+            df_gabaritos_view = pd.read_csv(ARQUIVO_GABARITOS)
+            
+            # Aplica o mesmo filtro aos gabaritos
+            if filtro_gp != "Todos os GPs":
+                df_gabaritos_view = df_gabaritos_view[df_gabaritos_view["GP"] == filtro_gp]
+                
+            st.dataframe(df_gabaritos_view, use_container_width=True)
+        else:
+            st.info("Nenhum gabarito oficial foi registrado ainda.")
+        # ----------------------------------------------
             
         st.divider()
         st.header("🏆 Inserir Gabarito Oficial")
@@ -364,4 +380,3 @@ elif menu == "Administrador":
                     
     elif senha != "":
         st.error("Senha incorreta.")
-
