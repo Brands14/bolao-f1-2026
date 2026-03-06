@@ -36,7 +36,7 @@ emails_autorizados = {
     "George Fleury": "gfleury@gmail.com",
     "Henrique Junqueira": "amtelegas@gmail.com",
     "Hilton Jacinto": "hiltonlpj2@hotmail.com",
-    "Jaime Gabriel": "jaimesofiltrosgyn@gmail.comm",
+    "Jaime Gabriel": "jaimesofiltrosgyn@gmail.com",
     "Luciano (Medalha)": "luciano.pallada@terra.com.br",
     "Maikon Miranda": "maikonmiranda@gmail.com",
     "Myke Ribeiro": "mribeiro3088@gmail.com",
@@ -389,4 +389,5 @@ elif menu == "Administrador":
                     
     elif senha != "":
         st.error("Senha incorreta.")
+
 
