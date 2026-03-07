@@ -102,7 +102,7 @@ lista_gps = [
 sprint_gps = ["China", "Miami", "Canadá", "Reino Unido", "Holanda", "Singapura"]
 fuso_br = pytz.timezone('America/Sao_Paulo')
 
-# 2. Motor de Banco de Dados Permanente (GitHub API)
+# 2. Motor de Banco de Dados Permanente (GitHub API) com Sistema de Sobrescrita
 def ler_dados(arquivo):
     url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{arquivo}"
     req = urllib.request.Request(url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
@@ -119,6 +119,19 @@ def guardar_dados(dados, arquivo):
     df_novo = pd.DataFrame([dados])
 
     if not df_atual.empty:
+        # Lógica de Sobrescrita Inteligente
+        if 'Usuario' in dados:
+            # É um Palpite de Jogador: remove o palpite anterior do mesmo GP, Tipo e Usuário
+            mascara = ~((df_atual['GP'] == dados['GP']) & 
+                        (df_atual['Tipo'] == dados['Tipo']) & 
+                        (df_atual['Usuario'] == dados['Usuario']))
+        else:
+            # É um Gabarito de Admin: remove o gabarito anterior do mesmo GP e Tipo
+            mascara = ~((df_atual['GP'] == dados['GP']) & 
+                        (df_atual['Tipo'] == dados['Tipo']))
+            
+        # Filtra o dataframe tirando a linha velha e anexa a nova
+        df_atual = df_atual[mascara]
         df_final = pd.concat([df_atual, df_novo], ignore_index=True)
     else:
         df_final = df_novo
@@ -128,7 +141,7 @@ def guardar_dados(dados, arquivo):
 
     url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{arquivo}"
     payload = {
-        "message": f"Salvando palpite oficial no banco: {arquivo}",
+        "message": f"Atualizando registro no banco: {arquivo}",
         "content": encoded_content
     }
     if sha:
@@ -284,7 +297,7 @@ if menu == "Enviar Palpite":
                         "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono, "MaisUltrapassagens": mais_ultrapassagens
                     }
                     if guardar_dados(dados, ARQUIVO_DADOS):
-                        st.success(f"Palpite de {tipo_sessao} registrado com sucesso e a salvo de reinicializações!")
+                        st.success(f"Palpite de {tipo_sessao} atualizado e salvo com sucesso!")
                     else:
                         st.error("Falha ao salvar no banco permanente. Fale com a Direção de Prova.")
                 else:
@@ -464,10 +477,9 @@ elif menu == "Administrador":
                     "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono, "MaisUltrapassagens": mais_ultrapassagens
                 }
                 if guardar_dados(dados_gabarito, ARQUIVO_GABARITOS):
-                    st.success(f"Gabarito de {tipo_admin} salvo permanentemente! As classificações foram atualizadas.")
+                    st.success(f"Gabarito de {tipo_admin} atualizado permanentemente! As classificações foram atualizadas.")
                 else:
                     st.error("Erro ao gravar o gabarito. Verifique as configurações.")
                     
     elif senha != "":
         st.error("Senha incorreta.")
-
