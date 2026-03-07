@@ -3,14 +3,31 @@ import pandas as pd
 from datetime import datetime
 import pytz
 import os
+import urllib.request
+import urllib.error
+import json
+import base64
+import io
 
 # 1. Configurações Iniciais
 st.set_page_config(page_title="Palpites F1 2026", layout="wide")
-ARQUIVO_DADOS = "palpites_oficial_2026_v2.csv" 
-ARQUIVO_GABARITOS = "gabaritos_oficial_2026_v2.csv"
+
+# 🚨 MUDE AQUI: Coloque exatamente o seu nome de usuário do GitHub dentro das aspas!
+GITHUB_USER = "Brands14" 
+GITHUB_REPO = "bolao-f1-2026"
+
+# Puxa a chave mestra que você salvou no painel do Streamlit
+try:
+    GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+except:
+    st.error("A chave GITHUB_TOKEN não foi encontrada nas configurações do Streamlit.")
+    st.stop()
+
+ARQUIVO_DADOS = "palpites_permanentes_2026.csv" 
+ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 
 try:
-    st.image("WhatsApp Image 2026-02-24 at 16.12.18.png", use_container_width=True)
+    st.image("WhatsApp Image 2026-02-24 at 16.12.18.jpeg", use_container_width=True)
 except:
     st.title("🏁 Palpites F1 2026")
 
@@ -85,14 +102,52 @@ lista_gps = [
 sprint_gps = ["China", "Miami", "Canadá", "Reino Unido", "Holanda", "Singapura"]
 fuso_br = pytz.timezone('America/Sao_Paulo')
 
-# 2. Funções de Dados e Pontuação Segura
-def guardar_dados(dados, arquivo):
-    df = pd.DataFrame([dados])
-    if not os.path.exists(arquivo):
-        df.to_csv(arquivo, index=False)
-    else:
-        df.to_csv(arquivo, mode='a', header=False, index=False)
+# 2. Motor de Banco de Dados Permanente (GitHub API)
+def ler_dados(arquivo):
+    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{arquivo}"
+    req = urllib.request.Request(url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
+    try:
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+            content = base64.b64decode(data['content']).decode('utf-8')
+            return pd.read_csv(io.StringIO(content)), data['sha']
+    except urllib.error.HTTPError:
+        return pd.DataFrame(), None
 
+def guardar_dados(dados, arquivo):
+    df_atual, sha = ler_dados(arquivo)
+    df_novo = pd.DataFrame([dados])
+
+    if not df_atual.empty:
+        df_final = pd.concat([df_atual, df_novo], ignore_index=True)
+    else:
+        df_final = df_novo
+
+    csv_content = df_final.to_csv(index=False)
+    encoded_content = base64.b64encode(csv_content.encode('utf-8')).decode('utf-8')
+
+    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{arquivo}"
+    payload = {
+        "message": f"Salvando palpite oficial no banco: {arquivo}",
+        "content": encoded_content
+    }
+    if sha:
+        payload["sha"] = sha
+
+    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Content-Type": "application/json",
+        "Accept": "application/vnd.github.v3+json"
+    }, method="PUT")
+
+    try:
+        with urllib.request.urlopen(req) as response:
+            return response.status in [200, 201]
+    except urllib.error.HTTPError as e:
+        st.error(f"Erro na nuvem: {e}")
+        return False
+
+# 3. Matemática das Sessões
 def check_ponto(palpite, gabarito, chave, valor_pontos):
     val_p = str(palpite.get(chave, '')).strip()
     val_g = str(gabarito.get(chave, '')).strip()
@@ -142,9 +197,9 @@ def calcular_pontos_sessao(palpite, gabarito):
         
     return pontos
 
-# 3. Menu e Navegação
+# 4. Menu e Navegação
 st.sidebar.header("Navegação")
-menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Classificações", "Administrador"])
+menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
 # --- ÁREA: ENVIAR PALPITE ---
 if menu == "Enviar Palpite":
@@ -177,7 +232,7 @@ if menu == "Enviar Palpite":
                 pole = st.selectbox("Pole Position:", pilotos)
                 
             elif tipo_sessao == "Corrida Principal":
-                st.info("📌 Palpite para a Corrida de Domingo (A Pole já deve ter sido enviada separadamente).")
+                st.info("📌 Palpite para a Corrida de Domingo.")
                 col1, col2 = st.columns(2)
                 with col1:
                     p1 = st.selectbox("1º Colocado:", pilotos)
@@ -211,7 +266,7 @@ if menu == "Enviar Palpite":
 
             st.divider()
             st.markdown("🔒 **Assinatura de Segurança**")
-            email_confirmacao = st.text_input("Digite seu E-mail cadastrado para validar o palpite:", type="password")
+            email_confirmacao = st.text_input("Digite o seu E-mail cadastrado para validar o palpite:", type="password")
             
             enviado = st.form_submit_button(f"Salvar Palpite - {tipo_sessao} 🏁")
             
@@ -220,6 +275,7 @@ if menu == "Enviar Palpite":
                 email_digitado = email_confirmacao.strip().lower()
                 
                 if email_digitado == email_correto and email_correto != "":
+                    st.info("Gravando permanentemente no cofre do GitHub... Aguarde!")
                     dados = {
                         "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
                         "GP": gp_selecionado, "Tipo": tipo_sessao, "Usuario": usuario_logado, "Equipe": equipe_usuario,
@@ -227,25 +283,54 @@ if menu == "Enviar Palpite":
                         "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
                         "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono, "MaisUltrapassagens": mais_ultrapassagens
                     }
-                    guardar_dados(dados, ARQUIVO_DADOS)
-                    st.success(f"Autenticação confirmada! Palpite de {tipo_sessao} registrado com sucesso!")
+                    if guardar_dados(dados, ARQUIVO_DADOS):
+                        st.success(f"Palpite de {tipo_sessao} registrado com sucesso e a salvo de reinicializações!")
+                    else:
+                        st.error("Falha ao salvar no banco permanente. Fale com a Direção de Prova.")
                 else:
-                    st.error("🚫 Acesso Negado: O e-mail informado não corresponde ao usuário selecionado. O palpite NÃO foi salvo.")
+                    st.error("🚫 Acesso Negado: E-mail incorreto.")
 
     else:
         st.info("Selecione o seu nome no menu lateral para começar.")
+
+# --- ÁREA: MEUS PALPITES ---
+elif menu == "Meus Palpites":
+    st.header("🕵️ Meu Histórico de Palpites")
+    st.write("Consulte aqui todos os palpites que você já enviou. Os dados agora são permanentes!")
+    
+    usuario_consulta = st.selectbox("Selecione o seu nome:", [""] + participantes)
+    
+    if usuario_consulta:
+        email_consulta = st.text_input("Digite o seu E-mail cadastrado para abrir o cofre:", type="password")
+        
+        if st.button("Buscar Meus Palpites 🔍"):
+            email_correto = emails_autorizados.get(usuario_consulta, "").strip().lower()
+            email_digitado = email_consulta.strip().lower()
+            
+            if email_digitado == email_correto and email_correto != "":
+                df_todos, _ = ler_dados(ARQUIVO_DADOS)
+                if not df_todos.empty:
+                    meus_dados = df_todos[df_todos['Usuario'] == usuario_consulta]
+                    if not meus_dados.empty:
+                        st.success("Cofre aberto com sucesso!")
+                        meus_dados_view = meus_dados.drop(columns=['Usuario', 'Equipe'])
+                        st.dataframe(meus_dados_view, use_container_width=True)
+                    else:
+                        st.warning("Você ainda não enviou nenhum palpite.")
+                else:
+                    st.info("Nenhum palpite registrado no banco permanente ainda.")
+            else:
+                st.error("🚫 Acesso Negado: O e-mail não confere.")
 
 # --- ÁREA: CLASSIFICAÇÕES ---
 elif menu == "Classificações":
     st.header("🏆 Classificações do Campeonato F1 2026")
     
-    if os.path.exists(ARQUIVO_DADOS) and os.path.exists(ARQUIVO_GABARITOS):
-        df_palpites = pd.read_csv(ARQUIVO_DADOS)
-        df_gabaritos = pd.read_csv(ARQUIVO_GABARITOS)
-        
+    df_palpites, _ = ler_dados(ARQUIVO_DADOS)
+    df_gabaritos, _ = ler_dados(ARQUIVO_GABARITOS)
+    
+    if not df_palpites.empty and not df_gabaritos.empty:
         resultados = []
-        
-        # Prepara a pontuação linha por linha
         for index_p, row_p in df_palpites.iterrows():
             gp = row_p.get('GP', '')
             tipo = row_p.get('Tipo', '')
@@ -255,13 +340,11 @@ elif menu == "Classificações":
             if not gabarito_match.empty:
                 gabarito_oficial = gabarito_match.iloc[-1]
                 pontos = calcular_pontos_sessao(row_p, gabarito_oficial)
-                # O Segredo está aqui: adicionei a coluna 'GP' aos resultados da memória
                 resultados.append({"Usuario": row_p['Usuario'], "Equipe": row_p.get('Equipe', 'Sem Equipe'), "Pontos": pontos, "GP": gp})
         
         if resultados:
             df_resultados = pd.DataFrame(resultados)
             
-            # --- NOVO FILTRO DE CLASSIFICAÇÃO POR GP ---
             st.markdown("### 🔍 Filtro de Resultados")
             filtro_classificacao = st.selectbox("Selecione a visualização desejada:", ["Geral (Campeonato Completo)"] + lista_gps)
             
@@ -270,7 +353,6 @@ elif menu == "Classificações":
                 st.subheader(f"📊 Resultado Específico: GP de {filtro_classificacao}")
             else:
                 st.subheader("📊 Classificação Geral do Campeonato")
-            # -------------------------------------------
             
             if not df_resultados.empty:
                 col1, col2 = st.columns(2)
@@ -286,43 +368,39 @@ elif menu == "Classificações":
                     ranking_equipas.index = range(1, len(ranking_equipas) + 1)
                     st.dataframe(ranking_equipas, use_container_width=True)
             else:
-                st.warning(f"Ainda não há pontuações calculadas para o {filtro_classificacao}. Verifique se o gabarito já foi lançado.")
+                st.warning(f"Ainda não há pontuações calculadas para o GP de {filtro_classificacao}.")
         else:
-            st.warning("Ainda não existem Gabaritos Oficiais para calcular as pontuações dos palpites inseridos.")
+            st.warning("Aguardando inserção de Gabaritos Oficiais compatíveis.")
     else:
-        st.warning("Aguardando inserção de palpites e Gabaritos Oficiais para gerar a classificação.")
+        st.warning("Banco de dados permanente está vazio. Aguardando novos palpites.")
 
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
     senha = st.sidebar.text_input("Senha de Diretor de Prova:", type="password")
     
     if senha == "fleury1475":
-        st.warning("⚠️ MODO ADMINISTRADOR ATIVO")
+        st.warning("⚠️ MODO ADMINISTRADOR ATIVO (DADOS PERMANENTES)")
         
         filtro_gp = st.selectbox("Filtrar por Grande Prêmio:", ["Todos os GPs"] + lista_gps)
         
         st.subheader("🕵️‍♂️ Auditoria: Palpites da Turma")
-        if os.path.exists(ARQUIVO_DADOS):
-            df_auditoria = pd.read_csv(ARQUIVO_DADOS)
-            
+        df_auditoria, _ = ler_dados(ARQUIVO_DADOS)
+        if not df_auditoria.empty:
             if filtro_gp != "Todos os GPs":
                 df_auditoria = df_auditoria[df_auditoria["GP"] == filtro_gp]
-                
             st.dataframe(df_auditoria, use_container_width=True)
         else:
-            st.info("Ainda não foram registrados palpites no sistema.")
+            st.info("Ainda não foram registrados palpites no banco permanente.")
             
         st.divider()
         st.subheader("📋 Gabaritos Oficiais Registrados")
-        if os.path.exists(ARQUIVO_GABARITOS):
-            df_gabaritos_view = pd.read_csv(ARQUIVO_GABARITOS)
-            
+        df_gabaritos_view, _ = ler_dados(ARQUIVO_GABARITOS)
+        if not df_gabaritos_view.empty:
             if filtro_gp != "Todos os GPs":
                 df_gabaritos_view = df_gabaritos_view[df_gabaritos_view["GP"] == filtro_gp]
-                
             st.dataframe(df_gabaritos_view, use_container_width=True)
         else:
-            st.info("Nenhum gabarito oficial foi registrado ainda.")
+            st.info("Nenhum gabarito oficial registrado.")
             
         st.divider()
         st.header("🏆 Inserir Gabarito Oficial")
@@ -379,16 +457,16 @@ elif menu == "Administrador":
                     
             enviar_gabarito = st.form_submit_button(f"Submeter Gabarito Oficial - {tipo_admin} 🏆")
             if enviar_gabarito:
+                st.info("Salvando o gabarito oficial no GitHub...")
                 dados_gabarito = {
                     "GP": gp_admin, "Tipo": tipo_admin, "Pole": pole, "P1": p1, "P2": p2, "P3": p3, 
                     "P4": p4, "P5": p5, "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
                     "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono, "MaisUltrapassagens": mais_ultrapassagens
                 }
-                guardar_dados(dados_gabarito, ARQUIVO_GABARITOS)
-                st.success(f"Gabarito de {tipo_admin} salvo! As classificações foram atualizadas.")
+                if guardar_dados(dados_gabarito, ARQUIVO_GABARITOS):
+                    st.success(f"Gabarito de {tipo_admin} salvo permanentemente! As classificações foram atualizadas.")
+                else:
+                    st.error("Erro ao gravar o gabarito. Verifique as configurações.")
                     
     elif senha != "":
         st.error("Senha incorreta.")
-
-
-
