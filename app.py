@@ -27,7 +27,7 @@ ARQUIVO_DADOS = "palpites_permanentes_2026.csv"
 ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 
 try:
-    st.image("WhatsApp Image 2026-02-24 at 16.12.18.jpeg", use_container_width=True)
+    st.image("WhatsApp Image 2026-02-24 at 16.12.18.png", use_container_width=True)
 except:
     st.title("🏁 Palpites F1 2026")
 
@@ -470,3 +470,4 @@ elif menu == "Administrador":
                     
     elif senha != "":
         st.error("Senha incorreta.")
+
