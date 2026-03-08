@@ -8,6 +8,9 @@ import urllib.error
 import json
 import base64
 import io
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # 1. Configurações Iniciais
 st.set_page_config(page_title="Palpites F1 2026", layout="wide")
@@ -15,12 +18,14 @@ st.set_page_config(page_title="Palpites F1 2026", layout="wide")
 # 🚨 MUDE AQUI: Coloque exatamente o seu nome de usuário do GitHub dentro das aspas!
 GITHUB_USER = "Brands14" 
 GITHUB_REPO = "bolao-f1-2026"
+EMAIL_ADMIN = "palpitesf12026@gmail.com"
 
-# Puxa a chave mestra que você salvou no painel do Streamlit
+# Puxa as chaves mestras do painel do Streamlit
 try:
     GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+    SENHA_EMAIL = st.secrets["SENHA_EMAIL"]
 except:
-    st.error("A chave GITHUB_TOKEN não foi encontrada nas configurações do Streamlit.")
+    st.error("As chaves de segurança (GITHUB_TOKEN ou SENHA_EMAIL) não foram encontradas nas configurações do Streamlit.")
     st.stop()
 
 ARQUIVO_DADOS = "palpites_permanentes_2026.csv" 
@@ -156,7 +161,57 @@ def guardar_dados(dados, arquivo):
         st.error(f"Erro na nuvem: {e}")
         return False
 
-# 3. Matemática das Sessões
+# 3. Disparador de E-mails
+def enviar_recibo_email(dados, email_destino):
+    remetente = EMAIL_ADMIN
+    destinatarios = [remetente, email_destino]
+    
+    msg = MIMEMultipart()
+    msg['From'] = remetente
+    msg['To'] = ", ".join(destinatarios)
+    msg['Subject'] = f"🏁 Recibo de Palpite F1 - {dados['Usuario']} - GP {dados['GP']} ({dados['Tipo']})"
+    
+    corpo = f"""
+    Olá {dados['Usuario']},
+    
+    Seu palpite foi registrado com sucesso pelo VAR do nosso sistema!
+    Abaixo está a cópia oficial do seu envio.
+    
+    --- DETALHES DO REGISTRO ---
+    Grande Prêmio: {dados['GP']}
+    Sessão: {dados['Tipo']}
+    Data e Hora Exata do Envio: {dados['Data_Envio']}
+    
+    --- SEU PALPITE ---
+    """
+    
+    if "Pole" in dados['Tipo']:
+        corpo += f"Pole Position: {dados.get('Pole', '')}\n"
+    elif "Corrida Principal" == dados['Tipo']:
+        corpo += f"1º Colocado: {dados.get('P1', '')}\n2º Colocado: {dados.get('P2', '')}\n3º Colocado: {dados.get('P3', '')}\n"
+        corpo += f"4º Colocado: {dados.get('P4', '')}\n5º Colocado: {dados.get('P5', '')}\n6º Colocado: {dados.get('P6', '')}\n"
+        corpo += f"7º Colocado: {dados.get('P7', '')}\n8º Colocado: {dados.get('P8', '')}\n9º Colocado: {dados.get('P9', '')}\n10º Colocado: {dados.get('P10', '')}\n"
+        corpo += f"\nMelhor Volta: {dados.get('VoltaRapida', '')}\n1º Abandono: {dados.get('PrimeiroAbandono', '')}\nMais Ultrapassagens: {dados.get('MaisUltrapassagens', '')}\n"
+    elif "Corrida Sprint" == dados['Tipo']:
+        corpo += f"1º Colocado: {dados.get('P1', '')}\n2º Colocado: {dados.get('P2', '')}\n3º Colocado: {dados.get('P3', '')}\n4º Colocado: {dados.get('P4', '')}\n"
+        corpo += f"5º Colocado: {dados.get('P5', '')}\n6º Colocado: {dados.get('P6', '')}\n7º Colocado: {dados.get('P7', '')}\n8º Colocado: {dados.get('P8', '')}\n"
+        
+    corpo += "\n\nEste é um e-mail automático. Em caso de dúvidas, procure a Direção de Prova (Fabrício ou Rodolfo)."
+    
+    msg.attach(MIMEText(corpo, 'plain'))
+    
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(remetente, SENHA_EMAIL)
+        server.sendmail(remetente, destinatarios, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Erro ao enviar e-mail: {e}")
+        return False
+
+# 4. Matemática das Sessões
 def check_ponto(palpite, gabarito, chave, valor_pontos):
     val_p = str(palpite.get(chave, '')).strip()
     val_g = str(gabarito.get(chave, '')).strip()
@@ -206,7 +261,7 @@ def calcular_pontos_sessao(palpite, gabarito):
         
     return pontos
 
-# 4. Menu e Navegação
+# 5. Menu e Navegação
 st.sidebar.header("Navegação")
 menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
@@ -284,7 +339,7 @@ if menu == "Enviar Palpite":
                 email_digitado = email_confirmacao.strip().lower()
                 
                 if email_digitado == email_correto and email_correto != "":
-                    st.info("Gravando permanentemente no cofre do GitHub... Aguarde!")
+                    st.info("Gravando permanentemente no cofre do GitHub e gerando recibos... Aguarde!")
                     dados = {
                         "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
                         "GP": gp_selecionado, "Tipo": tipo_sessao, "Usuario": usuario_logado, "Equipe": equipe_usuario,
@@ -293,7 +348,12 @@ if menu == "Enviar Palpite":
                         "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono, "MaisUltrapassagens": mais_ultrapassagens
                     }
                     if guardar_dados(dados, ARQUIVO_DADOS):
-                        st.success(f"Palpite de {tipo_sessao} atualizado e salvo com sucesso!")
+                        # Se salvou no Github, dispara os emails!
+                        email_enviado = enviar_recibo_email(dados, email_correto)
+                        if email_enviado:
+                            st.success(f"Palpite de {tipo_sessao} salvo! Recibo enviado para o seu e-mail e para a Direção de Prova.")
+                        else:
+                            st.warning(f"Palpite salvo no banco com sucesso, mas houve uma falha ao enviar o recibo por e-mail.")
                     else:
                         st.error("Falha ao salvar no banco permanente. Fale com a Direção de Prova.")
                 else:
@@ -379,7 +439,6 @@ elif menu == "Classificações":
             else:
                 st.warning(f"Ainda não há pontuações calculadas para o GP de {filtro_classificacao}.")
                 
-            # --- NOVO BLOCO: RAIO-X DOS PALPITES ---
             st.divider()
             st.subheader("🕵️‍♂️ Raio-X dos Palpites (Auditoria Pública)")
             st.write("Selecione um GP e uma Sessão para ver onde cada piloto pontuou. *(Só disponível após o gabarito oficial)*")
@@ -418,7 +477,6 @@ elif menu == "Classificações":
                             val_p = str(palpite_usuario.get(chave, '')).strip()
                             val_g = str(gabarito_oficial_rx.get(chave, '')).strip()
                             
-                            # Formatação visual amigável (ex: P1 -> 1º Colocado)
                             nome_chave = chave.replace('P', 'º Colocado').replace('VoltaRapida', 'Melhor Volta').replace('PrimeiroAbandono', '1º Abandono').replace('MaisUltrapassagens', 'Mais Ultrapassagens')
                             if chave.startswith('P') and len(chave) > 1:
                                 nome_chave = chave[1:] + nome_chave[1:]
@@ -432,8 +490,6 @@ elif menu == "Classificações":
                     st.info("Ninguém enviou palpite para esta sessão específica.")
             else:
                 st.warning("🔒 O Raio-X ainda está bloqueado! Aguarde a Direção de Prova lançar o Gabarito Oficial desta sessão.")
-            # ---------------------------------------
-            
         else:
             st.warning("Aguardando inserção de Gabaritos Oficiais compatíveis.")
     else:
