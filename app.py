@@ -119,18 +119,14 @@ def guardar_dados(dados, arquivo):
     df_novo = pd.DataFrame([dados])
 
     if not df_atual.empty:
-        # Lógica de Sobrescrita Inteligente
         if 'Usuario' in dados:
-            # É um Palpite de Jogador: remove o palpite anterior do mesmo GP, Tipo e Usuário
             mascara = ~((df_atual['GP'] == dados['GP']) & 
                         (df_atual['Tipo'] == dados['Tipo']) & 
                         (df_atual['Usuario'] == dados['Usuario']))
         else:
-            # É um Gabarito de Admin: remove o gabarito anterior do mesmo GP e Tipo
             mascara = ~((df_atual['GP'] == dados['GP']) & 
                         (df_atual['Tipo'] == dados['Tipo']))
             
-        # Filtra o dataframe tirando a linha velha e anexa a nova
         df_atual = df_atual[mascara]
         df_final = pd.concat([df_atual, df_novo], ignore_index=True)
     else:
@@ -335,7 +331,7 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ÁREA: CLASSIFICAÇÕES ---
+# --- ÁREA: CLASSIFICAÇÕES E RAIO-X ---
 elif menu == "Classificações":
     st.header("🏆 Classificações do Campeonato F1 2026")
     
@@ -382,6 +378,62 @@ elif menu == "Classificações":
                     st.dataframe(ranking_equipas, use_container_width=True)
             else:
                 st.warning(f"Ainda não há pontuações calculadas para o GP de {filtro_classificacao}.")
+                
+            # --- NOVO BLOCO: RAIO-X DOS PALPITES ---
+            st.divider()
+            st.subheader("🕵️‍♂️ Raio-X dos Palpites (Auditoria Pública)")
+            st.write("Selecione um GP e uma Sessão para ver onde cada piloto pontuou. *(Só disponível após o gabarito oficial)*")
+            
+            col_rx1, col_rx2 = st.columns(2)
+            with col_rx1:
+                rx_gp = st.selectbox("Selecione o GP para o Raio-X:", lista_gps)
+            with col_rx2:
+                rx_opcoes = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"] if rx_gp in sprint_gps else ["Classificação Principal (Pole)", "Corrida Principal"]
+                rx_tipo = st.selectbox("Sessão do Raio-X:", rx_opcoes)
+                
+            gabarito_rx = df_gabaritos[(df_gabaritos['GP'] == rx_gp) & (df_gabaritos['Tipo'] == rx_tipo)]
+            
+            if not gabarito_rx.empty:
+                gabarito_oficial_rx = gabarito_rx.iloc[-1]
+                palpites_rx = df_palpites[(df_palpites['GP'] == rx_gp) & (df_palpites['Tipo'] == rx_tipo)]
+                
+                if not palpites_rx.empty:
+                    usuarios_que_palpitaram = sorted(palpites_rx['Usuario'].unique())
+                    rx_usuario = st.selectbox("Selecione o Palpiteiro para abrir o Raio-X:", [""] + usuarios_que_palpitaram)
+                    
+                    if rx_usuario:
+                        palpite_usuario = palpites_rx[palpites_rx['Usuario'] == rx_usuario].iloc[-1]
+                        
+                        st.markdown(f"**Comparativo: Palpite de {rx_usuario} vs Gabarito Oficial**")
+                        
+                        chaves_comparacao = []
+                        if "Pole" in rx_tipo:
+                            chaves_comparacao = ['Pole']
+                        elif "Corrida Principal" == rx_tipo:
+                            chaves_comparacao = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'VoltaRapida', 'PrimeiroAbandono', 'MaisUltrapassagens']
+                        elif "Corrida Sprint" == rx_tipo:
+                            chaves_comparacao = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8']
+                            
+                        for chave in chaves_comparacao:
+                            val_p = str(palpite_usuario.get(chave, '')).strip()
+                            val_g = str(gabarito_oficial_rx.get(chave, '')).strip()
+                            
+                            # Formatação visual amigável (ex: P1 -> 1º Colocado)
+                            nome_chave = chave.replace('P', 'º Colocado').replace('VoltaRapida', 'Melhor Volta').replace('PrimeiroAbandono', '1º Abandono').replace('MaisUltrapassagens', 'Mais Ultrapassagens')
+                            if chave.startswith('P') and len(chave) > 1:
+                                nome_chave = chave[1:] + nome_chave[1:]
+                            
+                            if val_p == val_g and val_p != "" and val_p != "nan":
+                                st.success(f"✅ **{nome_chave}:** {val_p} *(Acertou!)*")
+                            else:
+                                if val_p == "" or val_p == "nan": val_p = "Nenhum/Em branco"
+                                st.error(f"❌ **{nome_chave}:** Apostou em *{val_p}* | Oficial: **{val_g}**")
+                else:
+                    st.info("Ninguém enviou palpite para esta sessão específica.")
+            else:
+                st.warning("🔒 O Raio-X ainda está bloqueado! Aguarde a Direção de Prova lançar o Gabarito Oficial desta sessão.")
+            # ---------------------------------------
+            
         else:
             st.warning("Aguardando inserção de Gabaritos Oficiais compatíveis.")
     else:
