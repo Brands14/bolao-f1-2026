@@ -194,4 +194,72 @@ if menu == "Enviar Palpite":
                     if guardar_dados(d, ARQUIVO_DADOS):
                         enviar_recibo_email(d, em_conf)
                         st.success("Sucesso! Recibo enviado por e-mail.")
-                else: st.error("E-mail não autorizado
+                else: st.error("E-mail não autorizado.")
+
+# --- ABA: CLASSIFICAÇÕES (COM RAIO-X VOLTOU!) ---
+elif menu == "Classificações":
+    st.header("🏆 Classificação e Auditoria")
+    df_p, _ = ler_dados(ARQUIVO_DADOS)
+    df_g, _ = ler_dados(ARQUIVO_GABARITOS)
+    
+    if not df_p.empty and not df_g.empty:
+        res = []
+        for _, r in df_p.iterrows():
+            gb = df_g[(df_g['GP'] == r['GP']) & (df_g['Tipo'] == r['Tipo'])]
+            if not gb.empty: res.append({"Usuario": r['Usuario'], "Equipe": r['Equipe'], "Pontos": calcular_pontos_sessao(r, gb.iloc[-1]), "GP": r['GP']})
+        
+        if res:
+            df_res = pd.DataFrame(res)
+            tab1, tab2 = st.tabs(["📊 Rankings", "🔍 Raio-X (VAR)"])
+            
+            with tab1:
+                c1, c2 = st.columns(2)
+                with c1: st.subheader("Pilotos"); st.dataframe(df_res.groupby('Usuario')['Pontos'].sum().sort_values(ascending=False), use_container_width=True)
+                with c2: st.subheader("Equipes"); st.dataframe(df_res.groupby('Equipe')['Pontos'].sum().sort_values(ascending=False), use_container_width=True)
+            
+            with tab2:
+                st.subheader("🕵️ Auditoria de Pontos")
+                rx_gp = st.selectbox("Selecione o GP:", lista_gps)
+                rx_tp = st.selectbox("Sessão:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"])
+                rx_u = st.selectbox("Palpiteiro:", [""] + participantes)
+                
+                if rx_u:
+                    pal_u = df_p[(df_p['GP'] == rx_gp) & (df_p['Tipo'] == rx_tp) & (df_p['Usuario'] == rx_u)]
+                    gab_u = df_g[(df_g['GP'] == rx_gp) & (df_g['Tipo'] == rx_tp)]
+                    if not pal_u.empty and not gab_u.empty:
+                        p_u, g_u = pal_u.iloc[-1], gab_u.iloc[-1]
+                        # Exibe comparativo simples
+                        st.write(f"**Análise de {rx_u}:**")
+                        for k in ['Pole', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'VoltaRapida', 'PrimeiroAbandono', 'MaisUltrapassagens']:
+                            if str(p_u.get(k, '')) != 'nan' and str(p_u.get(k, '')) != '':
+                                if p_u[k] == g_u[k]: st.success(f"✅ {k}: {p_u[k]} (ACERTOU)")
+                                else: st.error(f"❌ {k}: {p_u[k]} (Oficial: {g_u[k]})")
+                    else: st.info("Gabarito ou Palpite não disponível para esta sessão.")
+
+# --- ABA: ADMINISTRADOR (Lançar Gabaritos + Zona de Exclusão) ---
+elif menu == "Administrador":
+    pwd = st.sidebar.text_input("Senha Admin:", type="password")
+    if pwd == "fleury1475":
+        st.subheader("🗑️ Zona de Exclusão (Limpeza)")
+        df_adm, _ = ler_dados(ARQUIVO_DADOS)
+        if not df_adm.empty:
+            c1, c2, c3 = st.columns(3)
+            with c1: u_del = st.selectbox("Limpar de:", [""] + sorted(df_adm['Usuario'].unique().tolist()))
+            with c2: gp_del = st.selectbox("GP p/ Limpar:", [""] + sorted(df_adm['GP'].unique().tolist()))
+            with c3: tp_del = st.selectbox("Sessão p/ Limpar:", [""] + sorted(df_adm['Tipo'].unique().tolist()))
+            if st.button("🔴 APAGAR DEFINITIVAMENTE"):
+                if apagar_registro(u_del, gp_del, tp_del, ARQUIVO_DADOS):
+                    st.success("Removido!"); st.rerun()
+
+        st.divider()
+        st.subheader("🏆 Lançar Gabarito Oficial")
+        gp_g = st.selectbox("GP do Gabarito:", lista_gps)
+        tp_g = st.selectbox("Sessão do Gabarito:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"])
+        with st.form("f_gab"):
+            pole_g = st.selectbox("Pole Position:", pilotos)
+            p1g=st.selectbox("1º:", pilotos); p2g=st.selectbox("2º:", pilotos); p3g=st.selectbox("3º:", pilotos); p4g=st.selectbox("4º:", pilotos); p5g=st.selectbox("5º:", pilotos)
+            p6g=st.selectbox("6º:", pilotos); p7g=st.selectbox("7º:", pilotos); p8g=st.selectbox("8º:", pilotos); p9g=st.selectbox("9º:", pilotos); p10g=st.selectbox("10º:", pilotos)
+            vrg=st.selectbox("Volta Rápida:", pilotos); pag=st.selectbox("1º Abandono:", pilotos); mug=st.selectbox("Mais Ultrapassagens:", pilotos)
+            if st.form_submit_button("Salvar Gabarito Oficial"):
+                dg = {"GP": gp_g, "Tipo": tp_g, "Pole": pole_g, "P1": p1g, "P2": p2g, "P3": p3g, "P4": p4g, "P5": p5g, "P6": p6g, "P7": p7g, "P8": p8g, "P9": p9g, "P10": p10g, "VoltaRapida": vrg, "PrimeiroAbandono": pag, "MaisUltrapassagens": mug}
+                if guardar_dados(dg, ARQUIVO_GABARITOS): st.success("Gabarito Gravado!")
