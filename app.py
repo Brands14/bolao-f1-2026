@@ -33,14 +33,22 @@ ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 
 # --- FUNÇÃO PARA EXIBIR FOTOS DO SEU GITHUB ---
 def mostrar_perfil(nome_piloto):
-    if nome_piloto and nome_piloto != "" and nome_piloto != "Nenhum / Outro":
-        # Formata o nome para a URL (Ex: "Max Verstappen" -> "Max%20Verstappen.png")
+    if nome_piloto and nome_piloto not in ["", "Nenhum / Outro"]:
+        # Formata o nome para a URL
         nome_url = nome_piloto.replace(" ", "%20")
-        # Caminho para o seu repositório
-        url_foto = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/{nome_url}.png"
-        st.image(url_foto, width=120)
+        
+        # Adicionamos um parâmetro aleatório no final (?v=1) para evitar problemas de cache
+        url_foto = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/{nome_url}.png?v=1"
+        
+        # Usamos o st.markdown para renderizar a imagem caso o st.image falhe
+        st.markdown(
+            f"""
+            <img src="{url_foto}" width="120" style="border-radius: 10px; box-shadow: 2px 2px 10px rgba(0,0,0,0.2);">
+            """, 
+            unsafe_allow_html=True
+        )
     else:
-        st.write("🏎️")
+        st.info("Aguardando piloto...")
 
 # --- FUNÇÕES DE BANCO DE DADOS (GitHub) ---
 def ler_dados(arquivo):
