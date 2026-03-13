@@ -124,12 +124,22 @@ fotos_pilotos = {
     "Nenhum / Outro": "https://www.f1fantasytracker.com/img/drivers/Any.png"
 }
 
-# Função para mostrar a foto do piloto abaixo do selectbox
-def mostrar_foto(nome_piloto):
-    if nome_piloto and nome_piloto in fotos_pilotos:
-        st.image(fotos_pilotos[nome_piloto], width=80)
-    else:
-        st.write("")
+# 1. URL base do seu repositório para fotos
+# Isso aponta diretamente para a pasta raiz do seu repo "bolao-f1-2026"
+URL_BASE_FOTOS = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/"
+
+def exibir_foto_piloto(nome):
+    if nome and nome != "" and nome != "Nenhum / Outro":
+        # Formata o nome para bater com o arquivo (ex: "Max Verstappen" -> "Max%20Verstappen.png")
+        nome_arquivo = nome.replace(" ", "%20") + ".png"
+        url_foto = URL_BASE_FOTOS + nome_arquivo
+        
+        # Exibe a imagem. Se o arquivo não existir com esse nome exato, o Streamlit mostrará um erro discreto ou nada.
+        st.image(url_foto, width=80)
+
+# --- No seu formulário, onde tem os selects, chame a função assim: ---
+# p1 = st.selectbox("1º Colocado:", pilotos)
+# exibir_foto_piloto(p1)
 
 lista_gps = [
     "Austrália", "China", "Japão", "Bahrein", "Arábia Saudita", "Miami", 
