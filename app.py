@@ -34,21 +34,22 @@ ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 # --- FUNÇÃO PARA EXIBIR FOTOS DO SEU GITHUB ---
 def mostrar_perfil(nome_piloto):
     if nome_piloto and nome_piloto not in ["", "Nenhum / Outro"]:
-        # Formata o nome para a URL
         nome_url = nome_piloto.replace(" ", "%20")
+        url_foto = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/{nome_url}.png"
         
-        # Adicionamos um parâmetro aleatório no final (?v=1) para evitar problemas de cache
-        url_foto = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/{nome_url}.png?v=1"
+        # Opção 1: Texto de depuração (para sabermos se o código está rodando)
+        st.write(f"Buscando: {nome_piloto}")
         
-        # Usamos o st.markdown para renderizar a imagem caso o st.image falhe
-        st.markdown(
-            f"""
-            <img src="{url_foto}" width="120" style="border-radius: 10px; box-shadow: 2px 2px 10px rgba(0,0,0,0.2);">
-            """, 
-            unsafe_allow_html=True
-        )
+        # Opção 2: Renderização via HTML puro (Geralmente a mais compatível)
+        st.markdown(f'<img src="{url_foto}" width="120">', unsafe_allow_html=True)
+        
+        # Opção 3: Streamlit Image com bypass de segurança
+        try:
+            st.image(url_foto, width=120, use_container_width=False)
+        except Exception as e:
+            st.error(f"Erro no st.image: {e}")
     else:
-        st.info("Aguardando piloto...")
+        st.write("🏎️ Escolha um piloto")
 
 # --- FUNÇÕES DE BANCO DE DADOS (GitHub) ---
 def ler_dados(arquivo):
