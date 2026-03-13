@@ -97,50 +97,6 @@ pilotos = [
     "Nenhum / Outro"
 ]
 
-# Dicionário de Fotos dos Pilotos (URLs oficiais ou genéricas)
-fotos_pilotos = {
-    "Max Verstappen": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/M/MAXVER01_Max_Verstappen/maxver01.png",
-    "Isack Hadjar": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/I/ISAHAD01_Isack_Hadjar/isahad01.png",
-    "Lewis Hamilton": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/L/LEWHAM01_Lewis_Hamilton/lewham01.png",
-    "Charles Leclerc": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/C/CHALEC01_Charles_Leclerc/chalec01.png",
-    "George Russell": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/G/GEORUS01_George_Russell/georus01.png",
-    "Kimi Antonelli": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/A/ANTKIM01_Kimi_Antonelli/antkim01.png",
-    "Lando Norris": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/L/LANNOR01_Lando_Norris/lannor01.png",
-    "Oscar Piastri": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/O/OSCPIA01_Oscar_Piastri/oscpia01.png",
-    "Fernando Alonso": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/F/FERALO01_Fernando_Alonso/feralo01.png",
-    "Lance Stroll": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/L/LANSTR01_Lance_Stroll/lanstr01.png",
-    "Gabriel Bortoleto": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/G/GABBOR01_Gabriel_Bortoleto/gabbor01.png",
-    "Nico Hülkenberg": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/N/NICHUL01_Nico_Hulkenberg/nichul01.png",
-    "Alex Albon": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/A/ALEALB01_Alexander_Albon/alealb01.png",
-    "Carlos Sainz": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/C/CARSAI01_Carlos_Sainz/carsai01.png",
-    "Pierre Gasly": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/P/PIEGAS01_Pierre_Gasly/piegas01.png",
-    "Franco Colapinto": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/F/FRACOL01_Franco_Colapinto/fracol01.png",
-    "Oliver Bearman": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/O/OLIBEA01_Oliver_Bearman/olibea01.png",
-    "Esteban Ocon": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/E/ESTOCO01_Esteban_Ocon/estoco01.png",
-    "Liam Lawson": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/L/LIALAW01_Liam_Lawson/lialaw01.png",
-    "Arvid Lindblad": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/A/ARVLIN01_Arvid_Lindblad/arvlin01.png",
-    "Sergio Pérez": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/S/SERPER01_Sergio_Perez/serper01.png",
-    "Valtteri Bottas": "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/V/VALBOT01_Valtteri_Bottas/valbot01.png",
-    "Nenhum / Outro": "https://www.f1fantasytracker.com/img/drivers/Any.png"
-}
-
-# 1. URL base do seu repositório para fotos
-# Isso aponta diretamente para a pasta raiz do seu repo "bolao-f1-2026"
-URL_BASE_FOTOS = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/"
-
-def exibir_foto_piloto(nome):
-    if nome and nome != "" and nome != "Nenhum / Outro":
-        # Formata o nome para bater com o arquivo (ex: "Max Verstappen" -> "Max%20Verstappen.png")
-        nome_arquivo = nome.replace(" ", "%20") + ".png"
-        url_foto = URL_BASE_FOTOS + nome_arquivo
-        
-        # Exibe a imagem. Se o arquivo não existir com esse nome exato, o Streamlit mostrará um erro discreto ou nada.
-        st.image(url_foto, width=80)
-
-# --- No seu formulário, onde tem os selects, chame a função assim: ---
-# p1 = st.selectbox("1º Colocado:", pilotos)
-# exibir_foto_piloto(p1)
-
 lista_gps = [
     "Austrália", "China", "Japão", "Bahrein", "Arábia Saudita", "Miami", 
     "Emília-Romanha", "Mônaco", "Canadá", "Espanha", "Áustria", "Reino Unido", 
@@ -205,6 +161,7 @@ def guardar_dados(dados, arquivo):
         st.error(f"Erro na nuvem: {e}")
         return False
 
+# Função auxiliar para deletar registro completo (reescrever arquivo sem a linha)
 def deletar_registro_github(arquivo, mascara_filtro):
     df_atual, sha = ler_dados(arquivo)
     if not df_atual.empty:
@@ -361,40 +318,39 @@ if menu == "Enviar Palpite":
             if "Pole" in tipo_sessao:
                 st.info("📌 Palpite apenas para a Pole Position desta sessão.")
                 pole = st.selectbox("Pole Position:", pilotos)
-                mostrar_foto(pole)
                 
             elif tipo_sessao == "Corrida Principal":
                 st.info("📌 Palpite para a Corrida de Domingo.")
                 col1, col2 = st.columns(2)
                 with col1:
-                    p1 = st.selectbox("1º Colocado:", pilotos); mostrar_foto(p1)
-                    p2 = st.selectbox("2º Colocado:", pilotos); mostrar_foto(p2)
-                    p3 = st.selectbox("3º Colocado:", pilotos); mostrar_foto(p3)
-                    p4 = st.selectbox("4º Colocado:", pilotos); mostrar_foto(p4)
-                    p5 = st.selectbox("5º Colocado:", pilotos); mostrar_foto(p5)
+                    p1 = st.selectbox("1º Colocado:", pilotos)
+                    p2 = st.selectbox("2º Colocado:", pilotos)
+                    p3 = st.selectbox("3º Colocado:", pilotos)
+                    p4 = st.selectbox("4º Colocado:", pilotos)
+                    p5 = st.selectbox("5º Colocado:", pilotos)
                 with col2:
-                    p6 = st.selectbox("6º Colocado:", pilotos); mostrar_foto(p6)
-                    p7 = st.selectbox("7º Colocado:", pilotos); mostrar_foto(p7)
-                    p8 = st.selectbox("8º Colocado:", pilotos); mostrar_foto(p8)
-                    p9 = st.selectbox("9º Colocado:", pilotos); mostrar_foto(p9)
-                    p10 = st.selectbox("10º Colocado:", pilotos); mostrar_foto(p10)
-                    volta_rapida = st.selectbox("Melhor Volta:", pilotos); mostrar_foto(volta_rapida)
-                    primeiro_abandono = st.selectbox("1º Abandono:", pilotos); mostrar_foto(primeiro_abandono)
-                    mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos); mostrar_foto(mais_ultrapassagens)
+                    p6 = st.selectbox("6º Colocado:", pilotos)
+                    p7 = st.selectbox("7º Colocado:", pilotos)
+                    p8 = st.selectbox("8º Colocado:", pilotos)
+                    p9 = st.selectbox("9º Colocado:", pilotos)
+                    p10 = st.selectbox("10º Colocado:", pilotos)
+                    volta_rapida = st.selectbox("Melhor Volta:", pilotos)
+                    primeiro_abandono = st.selectbox("1º Abandono:", pilotos)
+                    mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos)
                     
             elif tipo_sessao == "Corrida Sprint":
                 st.info("📌 Palpite para a Corrida Sprint (Top 8).")
                 col1, col2 = st.columns(2)
                 with col1:
-                    p1 = st.selectbox("1º Colocado:", pilotos); mostrar_foto(p1)
-                    p2 = st.selectbox("2º Colocado:", pilotos); mostrar_foto(p2)
-                    p3 = st.selectbox("3º Colocado:", pilotos); mostrar_foto(p3)
-                    p4 = st.selectbox("4º Colocado:", pilotos); mostrar_foto(p4)
+                    p1 = st.selectbox("1º Colocado:", pilotos)
+                    p2 = st.selectbox("2º Colocado:", pilotos)
+                    p3 = st.selectbox("3º Colocado:", pilotos)
+                    p4 = st.selectbox("4º Colocado:", pilotos)
                 with col2:
-                    p5 = st.selectbox("5º Colocado:", pilotos); mostrar_foto(p5)
-                    p6 = st.selectbox("6º Colocado:", pilotos); mostrar_foto(p6)
-                    p7 = st.selectbox("7º Colocado:", pilotos); mostrar_foto(p7)
-                    p8 = st.selectbox("8º Colocado:", pilotos); mostrar_foto(p8)
+                    p5 = st.selectbox("5º Colocado:", pilotos)
+                    p6 = st.selectbox("6º Colocado:", pilotos)
+                    p7 = st.selectbox("7º Colocado:", pilotos)
+                    p8 = st.selectbox("8º Colocado:", pilotos)
 
             st.divider()
             st.markdown("🔒 **Assinatura de Segurança**")
@@ -538,20 +494,11 @@ elif menu == "Classificações":
                             val_g = str(gabarito_oficial_rx.get(chave, '')).strip()
                             nome_chave = chave.replace('P', 'º Colocado').replace('VoltaRapida', 'Melhor Volta').replace('PrimeiroAbandono', '1º Abandono').replace('MaisUltrapassagens', 'Mais Ultrapassagens')
                             
-                            # Mostra Foto e Comparativo
-                            col_txt, col_img_p, col_img_g = st.columns([3,1,1])
-                            with col_img_p: 
-                                st.caption("Palpite")
-                                mostrar_foto(val_p)
-                            with col_img_g:
-                                st.caption("Oficial")
-                                mostrar_foto(val_g)
-
                             if val_p == val_g and val_p != "" and val_p != "nan":
-                                col_txt.success(f"✅ **{nome_chave}:** {val_p}")
+                                st.success(f"✅ **{nome_chave}:** {val_p}")
                             else:
                                 if val_p == "" or val_p == "nan": val_p = "Em branco"
-                                col_txt.error(f"❌ **{nome_chave}:** Apostou em *{val_p}* | Oficial: **{val_g}**")
+                                st.error(f"❌ **{nome_chave}:** Apostou em *{val_p}* | Oficial: **{val_g}**")
                 else:
                     st.info("Ninguém enviou palpite para esta sessão.")
             else:
@@ -589,38 +536,20 @@ elif menu == "Administrador":
             with st.form("form_gabarito"):
                 pole = p1 = p2 = p3 = p4 = p5 = p6 = p7 = p8 = p9 = p10 = ""
                 volta_rapida = primeiro_abandono = mais_ultrapassagens = ""
-                if "Pole" in tipo_admin: 
-                    pole = st.selectbox("Pole Position Oficial:", pilotos)
-                    mostrar_foto(pole)
+                if "Pole" in tipo_admin: pole = st.selectbox("Pole Position Oficial:", pilotos)
                 elif "Corrida Principal" in tipo_admin:
                     c1, c2 = st.columns(2)
                     with c1:
-                        p1 = st.selectbox("1º Colocado:", pilotos); mostrar_foto(p1)
-                        p2 = st.selectbox("2º Colocado:", pilotos); mostrar_foto(p2)
-                        p3 = st.selectbox("3º Colocado:", pilotos); mostrar_foto(p3)
-                        p4 = st.selectbox("4º Colocado:", pilotos); mostrar_foto(p4)
-                        p5 = st.selectbox("5º Colocado:", pilotos); mostrar_foto(p5)
+                        p1, p2, p3, p4, p5 = [st.selectbox(f"{i}º Colocado:", pilotos) for i in range(1, 6)]
                     with c2:
-                        p6 = st.selectbox("6º Colocado:", pilotos); mostrar_foto(p6)
-                        p7 = st.selectbox("7º Colocado:", pilotos); mostrar_foto(p7)
-                        p8 = st.selectbox("8º Colocado:", pilotos); mostrar_foto(p8)
-                        p9 = st.selectbox("9º Colocado:", pilotos); mostrar_foto(p9)
-                        p10 = st.selectbox("10º Colocado:", pilotos); mostrar_foto(p10)
-                        volta_rapida = st.selectbox("Melhor Volta:", pilotos); mostrar_foto(volta_rapida)
-                        primeiro_abandono = st.selectbox("1º Abandono:", pilotos); mostrar_foto(primeiro_abandono)
-                        mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos); mostrar_foto(mais_ultrapassagens)
+                        p6, p7, p8, p9, p10 = [st.selectbox(f"{i}º Colocado:", pilotos) for i in range(6, 11)]
+                        volta_rapida = st.selectbox("Melhor Volta:", pilotos)
+                        primeiro_abandono = st.selectbox("1º Abandono:", pilotos)
+                        mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos)
                 elif "Corrida Sprint" in tipo_admin:
                     c1, c2 = st.columns(2)
-                    with c1: 
-                        p1 = st.selectbox("1º Colocado:", pilotos); mostrar_foto(p1)
-                        p2 = st.selectbox("2º Colocado:", pilotos); mostrar_foto(p2)
-                        p3 = st.selectbox("3º Colocado:", pilotos); mostrar_foto(p3)
-                        p4 = st.selectbox("4º Colocado:", pilotos); mostrar_foto(p4)
-                    with c2: 
-                        p5 = st.selectbox("5º Colocado:", pilotos); mostrar_foto(p5)
-                        p6 = st.selectbox("6º Colocado:", pilotos); mostrar_foto(p6)
-                        p7 = st.selectbox("7º Colocado:", pilotos); mostrar_foto(p7)
-                        p8 = st.selectbox("8º Colocado:", pilotos); mostrar_foto(p8)
+                    with c1: p1, p2, p3, p4 = [st.selectbox(f"{i}º Colocado:", pilotos) for i in range(1, 5)]
+                    with c2: p5, p6, p7, p8 = [st.selectbox(f"{i}º Colocado:", pilotos) for i in range(5, 9)]
                 
                 if st.form_submit_button("Salvar Gabarito Oficial 🏆"):
                     dados_g = {"GP": gp_admin, "Tipo": tipo_admin, "Pole": pole, "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5, "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10, "VoltaRapida": volta_rapida, "PrimeiroAbandono": primeiro_abandono, "MaisUltrapassagens": mais_ultrapassagens}
