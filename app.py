@@ -35,26 +35,24 @@ ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 # --- FUNÇÃO MESTRA PARA EXIBIR FOTOS (VIA BASE64) ---
 def mostrar_perfil(nome_piloto):
     if nome_piloto and nome_piloto not in ["", "Nenhum / Outro"]:
-        nome_url = nome_piloto.replace(" ", "%20")
-        # Link RAW do seu repositório
-        url_foto = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/{nome_url}.png"
+        nome_arquivo = f"{nome_piloto}.png"
+        # Usamos a API de conteúdos do GitHub (a mesma que lê o seu CSV)
+        url_api = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/fotos/{nome_arquivo}"
         
         try:
-            # O servidor baixa a imagem usando o seu Token
-            headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-            response = requests.get(url_foto, headers=headers, timeout=5)
-            
-            if response.status_code == 200:
-                # Converte para Base64 para evitar bloqueios de navegador
-                img_b64 = base64.b64encode(response.content).decode()
+            req = urllib.request.Request(url_api, headers={"Authorization": f"token {GITHUB_TOKEN}"})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                # O GitHub já entrega a imagem em Base64 nativamente pela API!
+                img_b64 = data['content'].replace('\n', '') 
+                
                 st.markdown(
-                    f'<img src="data:image/png;base64,{img_b64}" width="130" style="border-radius:10px; border: 2px solid #333; box-shadow: 3px 3px 10px rgba(0,0,0,0.3);">',
+                    f'<img src="data:image/png;base64,{img_b64}" width="130" style="border-radius:10px; border: 2px solid #555;">',
                     unsafe_allow_html=True
                 )
-            else:
-                st.caption(f"🏁 (Foto não encontrada)")
-        except:
-            st.caption("⚠️ Erro de conexão")
+        except Exception as e:
+            # Se não encontrar a foto, mostra apenas o ícone para não travar o app
+            st.write("🏎️") 
     else:
         st.write("🏎️")
 
