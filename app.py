@@ -494,55 +494,57 @@ elif menu == "Classificações":
 
             st.divider()
 
-            # --- DASHBOARD 4 QUADRANTES ---
+            # --- DASHBOARD FINAL: LIMPO E PROFISSIONAL ---
+            st.divider()
             c1, c2 = st.columns(2)
             c3, c4 = st.columns(2)
 
             with c1:
-                st.subheader("🎯 Domínio")
-                # Gráfico de Pizza/Donut
-                fig1 = px.pie(df_soma_grafico, values='Pontos', names='Usuario', hole=0.4,
-                             color_discrete_sequence=px.colors.qualitative.Dark2)
-                fig1.update_layout(showlegend=False, margin=dict(l=20, r=20, t=20, b=20))
+                st.subheader("🎯 Duelo Interno (% Equipe)")
+                # Agrupa por equipe e usuário para ver a fatia de cada um
+                df_dom = df_base.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
+                fig1 = px.bar(df_dom, x='Pontos', y='Equipe', color='Usuario', 
+                             orientation='h', text='Usuario',
+                             color_discrete_sequence=px.colors.qualitative.Bold)
+                fig1.update_layout(showlegend=False, height=300, margin=dict(l=0, r=0, t=30, b=0))
+                fig1.update_traces(textposition='inside')
                 st.plotly_chart(fig1, use_container_width=True)
 
             with c2:
-                st.subheader("🎚️ Performance")
-                # Barra Horizontal (Líder no Topo)
+                st.subheader("🎚️ Ranking de Performance")
+                # Gráfico de barras limpo com nomes nas barras
                 fig2 = px.bar(df_soma_grafico, x='Pontos', y='Usuario', orientation='h',
-                             text='Pontos', color='Pontos', color_continuous_scale='Reds')
-                fig2.update_traces(textposition='outside')
-                fig2.update_layout(showlegend=False, yaxis={'categoryorder':'total ascending'})
+                             text='Usuario', color='Pontos', color_continuous_scale='Reds')
+                fig2.update_traces(textposition='inside', textfont_size=14)
+                fig2.update_layout(showlegend=False, coloraxis_showscale=False, height=300,
+                                  yaxis={'visible': False}) # Remove nomes repetidos no eixo Y
                 st.plotly_chart(fig2, use_container_width=True)
 
             with c3:
-                st.subheader("📈 Evolução")
-                # Barras empilhadas por GP
-                df_ev = df_base.copy()
-                df_ev['GP'] = pd.Categorical(df_ev['GP'], categories=lista_gps, ordered=True)
-                fig3 = px.bar(df_ev, x='Usuario', y='Pontos', color='GP', barmode='stack')
-                fig3.update_layout(xaxis={'categoryorder':'total descending'}, showlegend=False)
+                st.subheader("📈 Linha do Tempo (Evolução)")
+                # Garante que a evolução seja mostrada por GP na ordem correta
+                df_ev = df_base.sort_values(by='GP')
+                df_ev_total = df_ev.groupby(['Usuario', 'GP'], observed=True)['Pontos'].sum().groupby(level=0).cumsum().reset_index()
+                
+                fig3 = px.line(df_ev_total, x='GP', y='Pontos', color='Usuario', markers=True,
+                              line_shape='linear')
+                fig3.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=True)
                 st.plotly_chart(fig3, use_container_width=True)
 
             with c4:
                 st.subheader("🔮 AWS: Chance de Título")
-                total = df_soma_grafico['Pontos'].sum()
+                total_bolao = df_soma_grafico['Pontos'].sum()
                 df_prob = df_soma_grafico.copy()
-                df_prob['Prob'] = ((df_prob['Pontos'] / total) * 100).round(1) if total > 0 else 0
+                df_prob['Prob'] = ((df_prob['Pontos'] / total_bolao) * 100).round(1) if total_bolao > 0 else 0
                 
+                # Estilo "Insight" da F1 com bordas douradas
                 fig4 = go.Figure(go.Bar(
                     x=df_prob['Prob'], y=df_prob['Usuario'], orientation='h',
-                    marker=dict(color='gold', line=dict(color='darkgoldenrod', width=2)),
+                    marker=dict(color='rgba(255, 215, 0, 0.6)', line=dict(color='gold', width=2)),
                     text=df_prob['Prob'].astype(str) + '%', textposition='outside'
                 ))
-                # Ajuste de margem para o texto não cortar
-                fig4.update_layout(xaxis=dict(range=[0, 110]))
+                fig4.update_layout(xaxis=dict(range=[0, 120]), height=300, margin=dict(l=0, r=0, t=30, b=0))
                 st.plotly_chart(fig4, use_container_width=True)
-
-        else:
-            st.warning("Aguardando dados para processar a telemetria.")
-    else:
-        st.info("Aguardando o primeiro gabarito oficial!")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
