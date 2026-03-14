@@ -445,7 +445,7 @@ elif menu == "Meus Palpites":
 
 # --- ABA: CLASSIFICAÇÕES E DASHBOARD ORGANIZADO ---
 elif menu == "Classificações":
-    st.header("📊 Telemetria do Campeonato")
+    st.header("📊 Telemetria e Dashboard")
     
     import plotly.express as px 
     import plotly.graph_objects as go
@@ -454,105 +454,90 @@ elif menu == "Classificações":
     df_g, _ = ler_dados(ARQUIVO_GABARITOS)
     
     if not df_p.empty and not df_g.empty:
-        pontos_lista = []
+        # 1. PROCESSAMENTO DE DADOS (Unificado)
+        resultados = []
         for _, p in df_p.iterrows():
+            # Busca o gabarito correspondente
             g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
             if not g.empty:
                 pts = calcular_pontos_sessao(p, g.iloc[0])
-                pontos_lista.append({
+                resultados.append({
                     "GP": p['GP'], 
-                    "Usuario": str(p.get('Usuario', 'N/A')), 
-                    "Equipe": str(p.get('Equipe', 'N/A')),
+                    "Usuario": str(p['Usuario']), 
+                    "Equipe": str(p['Equipe']), 
                     "Pontos": int(pts)
                 })
         
-        if pontos_lista:
-            df_base = pd.DataFrame(pontos_lista)
-            # Soma total por usuário ordenado para os gráficos
-            df_soma_grafico = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=True)
+        if resultados:
+            df_master = pd.DataFrame(resultados)
             
-            # --- TABELAS SUPERIORES ---
-            tab_geral, tab_gp, tab_equipe = st.tabs(["🏆 Ranking Geral", "📍 Por Grande Prêmio", "🏎️ Mundial de Construtores"])
-            
-            with tab_geral:
-                df_ranking = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
-                df_ranking.index = range(1, len(df_ranking) + 1)
-                st.dataframe(df_ranking, use_container_width=True)
-
-            with tab_gp:
-                gp_sel = st.selectbox("Selecione o GP:", lista_gps, key="sel_gp_dash")
-                df_rodada = df_base[df_base['GP'] == gp_sel].groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
-                if not df_rodada.empty:
-                    df_rodada.index = range(1, len(df_rodada) + 1)
-                    st.dataframe(df_rodada, use_container_width=True)
-                else:
-                    st.info("Sem dados para este GP.")
-
-            with tab_equipe:
-                df_eq_tab = df_base.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                st.dataframe(df_eq_tab, use_container_width=True, hide_index=True)
+            # --- TABELAS ---
+            t1, t2, t3 = st.tabs(["🏆 Geral", "📍 Por Rodada", "🏎️ Equipes"])
+            with t1:
+                rank = df_master.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
+                rank.index += 1
+                st.dataframe(rank, use_container_width=True)
+            with t2:
+                gp_f = st.selectbox("Filtrar GP:", lista_gps, key="dash_gp")
+                rod = df_master[df_master['GP'] == gp_f].groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
+                st.dataframe(rod, use_container_width=True)
+            with t3:
+                eqp = df_master.groupby('Equipe')['Pontos'].sum().sort_values(ascending=False).reset_index()
+                st.dataframe(eqp, use_container_width=True)
 
             st.divider()
 
-           # --- DASHBOARD FINAL: CORREÇÃO DE DUELO E EVOLUÇÃO ---
-            st.divider()
+            # --- DASHBOARD (OS 4 QUADRANTES) ---
             c1, c2 = st.columns(2)
             c3, c4 = st.columns(2)
 
             with c1:
-                st.subheader("🎯 Duelo Interno (Pontos)")
-                # Agrupamento explícito para garantir a separação por Equipe e Usuário
-                df_duelo = df_base.groupby(['Equipe', 'Usuario'], as_index=False)['Pontos'].sum()
-                
-                # Usamos barmode='group' para as barras ficarem lado a lado por equipe
-                fig1 = px.bar(df_duelo, x='Equipe', y='Pontos', color='Usuario',
-                             barmode='group', text='Pontos',
-                             color_discrete_sequence=px.colors.qualitative.Bold)
-                fig1.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
-                fig1.update_traces(textposition='outside')
+                st.subheader("🎯 Duelo por Equipe")
+                # Gráfico de barras coloridas por usuário dentro da equipe
+                fig1 = px.bar(df_master, x="Equipe", y="Pontos", color="Usuario", 
+                             title="Pontos Acumulados por Time", barmode="stack")
+                fig1.update_layout(showlegend=False, height=350, margin=dict(l=0,r=0,t=30,b=0))
                 st.plotly_chart(fig1, use_container_width=True)
 
             with c2:
-                st.subheader("🎚️ Performance Total")
-                fig2 = px.bar(df_soma_grafico, x='Pontos', y='Usuario', orientation='h',
-                             text='Pontos', color='Usuario', color_discrete_sequence=['#FF1801'])
-                fig2.update_layout(showlegend=False, height=300, margin=dict(l=0, r=0, t=30, b=0))
+                st.subheader("🎚️ Performance Individual")
+                # Barras horizontais simples e diretas
+                perf = df_master.groupby('Usuario')['Pontos'].sum().reset_index().sort_values('Pontos')
+                fig2 = px.bar(perf, x='Pontos', y='Usuario', orientation='h', text='Pontos',
+                             color_discrete_sequence=['#FF1801'])
                 fig2.update_traces(textposition='inside')
+                fig2.update_layout(height=350, margin=dict(l=0,r=0,t=30,b=0))
                 st.plotly_chart(fig2, use_container_width=True)
 
             with c3:
-                st.subheader("📈 Evolução Acumulada")
-                # 1. Criar uma cópia e garantir que Usuario seja string
-                df_ev = df_base.copy()
-                df_ev['Usuario'] = df_ev['Usuario'].astype(str)
+                st.subheader("📈 Evolução no Campeonato")
+                # Ordenação manual pelo calendário da F1
+                df_master['OrdemGP'] = df_master['GP'].apply(lambda x: lista_gps.index(x) if x in lista_gps else 99)
+                evo = df_master.sort_values(['Usuario', 'OrdemGP'])
+                evo['Acumulado'] = evo.groupby('Usuario')['Pontos'].cumsum()
                 
-                # 2. Criar uma coluna de ordem para os GPs para garantir que a linha siga a sequência
-                ordem_gps = {gp: i for i, gp in enumerate(lista_gps)}
-                df_ev['Ordem'] = df_ev['GP'].map(ordem_gps)
-                df_ev = df_ev.sort_values(by=['Usuario', 'Ordem'])
-
-                # 3. Calcular a soma acumulada de verdade
-                df_ev['Pontos Acumulados'] = df_ev.groupby('Usuario')['Pontos'].cumsum()
-
-                # 4. Gerar o gráfico de linha conectando os GPs
-                fig3 = px.line(df_ev, x='GP', y='Pontos Acumulados', color='Usuario', 
-                              markers=True, category_orders={"GP": lista_gps})
-                fig3.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
+                fig3 = px.line(evo, x='GP', y='Acumulado', color='Usuario', markers=True)
+                fig3.update_layout(height=350, margin=dict(l=0,r=0,t=30,b=0), showlegend=True)
+                # Garante que o eixo X siga a ordem real das corridas
+                fig3.update_xaxes(categoryorder='array', categoryarray=lista_gps)
                 st.plotly_chart(fig3, use_container_width=True)
 
             with c4:
-                st.subheader("🔮 AWS: Chance de Título")
-                total_bolao = df_soma_grafico['Pontos'].sum()
-                df_prob = df_soma_grafico.copy()
-                df_prob['Prob'] = ((df_prob['Pontos'] / total_bolao) * 100).round(1) if total_bolao > 0 else 0
-                
+                st.subheader("🔮 Chance de Título (%)")
+                tot = rank['Pontos'].sum()
+                rank['Prob'] = ((rank['Pontos'] / tot) * 100).round(1) if tot > 0 else 0
                 fig4 = go.Figure(go.Bar(
-                    x=df_prob['Prob'], y=df_prob['Usuario'], orientation='h',
-                    marker=dict(color='rgba(255, 215, 0, 0.6)', line=dict(color='gold', width=2)),
-                    text=df_prob['Prob'].astype(str) + '%', textposition='outside'
+                    x=rank['Prob'], y=rank['Usuario'], orientation='h',
+                    text=rank['Prob'].astype(str) + '%', textposition='outside',
+                    marker=dict(color='gold', line=dict(color='darkgoldenrod', width=2))
                 ))
-                fig4.update_layout(xaxis=dict(range=[0, 120]), height=300, margin=dict(l=0, r=0, t=30, b=0))
+                fig4.update_layout(height=350, margin=dict(l=0,r=20,t=30,b=0), xaxis=dict(range=[0, 110]))
                 st.plotly_chart(fig4, use_container_width=True)
+
+        else:
+            st.info("Aguardando o primeiro GP ser computado para gerar os gráficos.")
+    else:
+        st.warning("Sem dados de palpites ou gabaritos no GitHub.")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
