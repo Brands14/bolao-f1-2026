@@ -492,39 +492,36 @@ elif menu == "Classificações":
             c3, c4 = st.columns(2)
 
             with c1:
-                st.subheader("🎯 Duelo Interno (% Equipe)")
+                st.subheader("🎯 Duelo Interno (Pontos)")
                 
-                # 1. Agrupar pontos por Equipe e Usuário
+                # 1. Agrupar dados
                 df_duelo = df_master.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
+                equipes = sorted(df_duelo['Equipe'].unique())
                 
-                # 2. Calcular totais por equipe de forma segura
-                totais = df_duelo.groupby('Equipe')['Pontos'].transform('sum')
-                
-                # 3. Calcular porcentagem evitando divisão por zero
-                df_duelo['Pct'] = (df_duelo['Pontos'] / totais * 100).fillna(0).round(1)
-                
-                # 4. Criar label amigável
-                df_duelo['Label'] = df_duelo['Usuario'] + ": " + df_duelo['Pct'].astype(str) + "%"
+                fig1 = go.Figure()
 
-                # 5. Gráfico usando cores fixas da F1 para não bugar
-                fig1 = px.bar(df_duelo, 
-                             y="Equipe", 
-                             x="Pct", 
-                             color="Usuario",
-                             orientation='h',
-                             text="Label",
-                             barmode="stack",
-                             color_discrete_sequence=px.colors.qualitative.T10)
+                # 2. Criar uma série de barras para cada usuário de forma dinâmica
+                usuarios_unicos = df_duelo['Usuario'].unique()
+                for i, user in enumerate(usuarios_unicos):
+                    dff = df_duelo[df_duelo['Usuario'] == user]
+                    # Só adiciona ao gráfico se o usuário tiver pontos em alguma equipe
+                    fig1.add_trace(go.Bar(
+                        name=user,
+                        x=dff['Equipe'],
+                        y=dff['Pontos'],
+                        text=dff['Pontos'],
+                        textposition='auto',
+                    ))
 
-                # 6. Forçar exibição do texto
-                fig1.update_traces(textposition='inside', insidetextanchor='middle')
-                
+                # 3. Configurações de Layout
                 fig1.update_layout(
-                    showlegend=False,
+                    barmode='group', # Barras dos parceiros lado a lado
                     height=350,
-                    margin=dict(l=0, r=10, t=30, b=0),
-                    xaxis=dict(range=[0, 100], title="% de Contribuição"),
-                    yaxis=dict(title=None)
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    showlegend=True, # Legenda ajuda a identificar quem é quem no duelo
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    xaxis=dict(title=None),
+                    yaxis=dict(title="Pontos Totais")
                 )
                 
                 st.plotly_chart(fig1, use_container_width=True)
