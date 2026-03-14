@@ -443,7 +443,7 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ABA: CLASSIFICAÇÕES E DASHBOARD DEFINITIVO (CORREÇÃO KEYERROR) ---
+# --- ABA: CLASSIFICAÇÕES E DASHBOARD ORGANIZADO ---
 elif menu == "Classificações":
     st.header("📊 Telemetria e Dashboard")
     
@@ -454,9 +454,10 @@ elif menu == "Classificações":
     df_g, _ = ler_dados(ARQUIVO_GABARITOS)
     
     if not df_p.empty and not df_g.empty:
-        # 1. PROCESSAMENTO UNIFICADO
+        # 1. PROCESSAMENTO DE DADOS (Unificado)
         resultados = []
         for _, p in df_p.iterrows():
+            # Busca o gabarito correspondente
             g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
             if not g.empty:
                 pts = calcular_pontos_sessao(p, g.iloc[0])
@@ -473,9 +474,9 @@ elif menu == "Classificações":
             # --- TABELAS ---
             t1, t2, t3 = st.tabs(["🏆 Geral", "📍 Por Rodada", "🏎️ Equipes"])
             with t1:
-                rank_geral = df_master.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
-                rank_geral.index += 1
-                st.dataframe(rank_geral, use_container_width=True)
+                rank = df_master.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
+                rank.index += 1
+                st.dataframe(rank, use_container_width=True)
             with t2:
                 gp_f = st.selectbox("Filtrar GP:", lista_gps, key="dash_gp")
                 rod = df_master[df_master['GP'] == gp_f].groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
@@ -486,11 +487,11 @@ elif menu == "Classificações":
 
             st.divider()
 
-            # --- DASHBOARD 4 QUADRANTES ---
+            # --- DASHBOARD (OS 4 QUADRANTES) ---
             c1, c2 = st.columns(2)
             c3, c4 = st.columns(2)
 
-             with c1:
+            with c1:
                 st.subheader("🎯 Duelo Interno (Pontos)")
                 
                 # 1. Agrupar dados
@@ -527,48 +528,43 @@ elif menu == "Classificações":
 
             with c2:
                 st.subheader("🎚️ Performance Individual")
-                # Prepara e ordena: maior valor por último para aparecer no TOPO
-                perf = df_master.groupby('Usuario')['Pontos'].sum().reset_index().sort_values('Pontos', ascending=True)
+                # Barras horizontais simples e diretas
+                perf = df_master.groupby('Usuario')['Pontos'].sum().reset_index().sort_values('Pontos')
                 fig2 = px.bar(perf, x='Pontos', y='Usuario', orientation='h', text='Pontos',
-                             color='Pontos', color_continuous_scale='Reds')
+                             color_discrete_sequence=['#FF1801'])
                 fig2.update_traces(textposition='inside')
-                fig2.update_layout(showlegend=False, coloraxis_showscale=False, height=350, margin=dict(l=0,r=10,t=30,b=0),
-                                  yaxis={'categoryorder':'array', 'categoryarray': perf['Usuario']})
+                fig2.update_layout(height=350, margin=dict(l=0,r=0,t=30,b=0))
                 st.plotly_chart(fig2, use_container_width=True)
 
             with c3:
-                st.subheader("📈 Evolução Acumulada")
+                st.subheader("📈 Evolução no Campeonato")
+                # Ordenação manual pelo calendário da F1
                 df_master['OrdemGP'] = df_master['GP'].apply(lambda x: lista_gps.index(x) if x in lista_gps else 99)
                 evo = df_master.sort_values(['Usuario', 'OrdemGP'])
                 evo['Acumulado'] = evo.groupby('Usuario')['Pontos'].cumsum()
                 
                 fig3 = px.line(evo, x='GP', y='Acumulado', color='Usuario', markers=True)
+                fig3.update_layout(height=350, margin=dict(l=0,r=0,t=30,b=0), showlegend=True)
+                # Garante que o eixo X siga a ordem real das corridas
                 fig3.update_xaxes(categoryorder='array', categoryarray=lista_gps)
-                fig3.update_layout(height=350, margin=dict(l=0,r=0,t=30,b=0))
                 st.plotly_chart(fig3, use_container_width=True)
 
             with c4:
-                st.subheader("🔮 AWS: Chance de Título (%)")
-                # Cálculo da probabilidade direto aqui para evitar KeyError
-                df_prob = df_master.groupby('Usuario')['Pontos'].sum().reset_index()
-                total_geral = df_prob['Pontos'].sum()
-                df_prob['Prob'] = ((df_prob['Pontos'] / total_geral) * 100).round(1) if total_geral > 0 else 0
-                df_prob = df_prob.sort_values('Prob', ascending=True) # Menor para o maior (Plotly inverte no Y)
-
+                st.subheader("🔮 Chance de Título (%)")
+                tot = rank['Pontos'].sum()
+                rank['Prob'] = ((rank['Pontos'] / tot) * 100).round(1) if tot > 0 else 0
                 fig4 = go.Figure(go.Bar(
-                    x=df_prob['Prob'], y=df_prob['Usuario'], orientation='h',
-                    text=df_prob['Prob'].astype(str) + '%', textposition='outside',
-                    marker=dict(color='rgba(255, 215, 0, 0.8)', line=dict(color='gold', width=2))
+                    x=rank['Prob'], y=rank['Usuario'], orientation='h',
+                    text=rank['Prob'].astype(str) + '%', textposition='outside',
+                    marker=dict(color='gold', line=dict(color='darkgoldenrod', width=2))
                 ))
-                fig4.update_layout(height=350, margin=dict(l=0,r=50,t=30,b=0),
-                                  yaxis={'categoryorder':'array', 'categoryarray': df_prob['Usuario']},
-                                  xaxis=dict(range=[0, df_prob['Prob'].max() * 1.3 if not df_prob.empty else 110]))
+                fig4.update_layout(height=350, margin=dict(l=0,r=20,t=30,b=0), xaxis=dict(range=[0, 110]))
                 st.plotly_chart(fig4, use_container_width=True)
 
         else:
-            st.info("Aguardando computação de dados.")
+            st.info("Aguardando o primeiro GP ser computado para gerar os gráficos.")
     else:
-        st.warning("Sem dados suficientes para o Dashboard.")
+        st.warning("Sem dados de palpites ou gabaritos no GitHub.")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
