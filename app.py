@@ -494,60 +494,106 @@ elif menu == "Classificações":
 
             st.divider()
 
+        # --- ABA: CLASSIFICAÇÕES E DASHBOARD ORGANIZADO ---
+elif menu == "Classificações":
+    st.header("📊 Telemetria do Campeonato")
+    
+    import plotly.express as px 
+    import plotly.graph_objects as go
+
+    df_p, _ = ler_dados(ARQUIVO_DADOS)
+    df_g, _ = ler_dados(ARQUIVO_GABARITOS)
+    
+    if not df_p.empty and not df_g.empty:
+        pontos_lista = []
+        for _, p in df_p.iterrows():
+            g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
+            if not g.empty:
+                pts = calcular_pontos_sessao(p, g.iloc[0])
+                pontos_lista.append({
+                    "GP": p['GP'], 
+                    "Usuario": str(p.get('Usuario', 'N/A')), 
+                    "Equipe": str(p.get('Equipe', 'N/A')),
+                    "Pontos": int(pts)
+                })
+        
+        if pontos_lista:
+            df_base = pd.DataFrame(pontos_lista)
+            # Soma total por usuário ordenado para os gráficos
+            df_soma_grafico = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=True)
+            
+            # --- TABELAS SUPERIORES ---
+            tab_geral, tab_gp, tab_equipe = st.tabs(["🏆 Ranking Geral", "📍 Por Grande Prêmio", "🏎️ Mundial de Construtores"])
+            
+            with tab_geral:
+                df_ranking = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
+                df_ranking.index = range(1, len(df_ranking) + 1)
+                st.dataframe(df_ranking, use_container_width=True)
+
+            with tab_gp:
+                gp_sel = st.selectbox("Selecione o GP:", lista_gps, key="sel_gp_dash")
+                df_rodada = df_base[df_base['GP'] == gp_sel].groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
+                if not df_rodada.empty:
+                    df_rodada.index = range(1, len(df_rodada) + 1)
+                    st.dataframe(df_rodada, use_container_width=True)
+                else:
+                    st.info("Sem dados para este GP.")
+
+            with tab_equipe:
+                df_eq_tab = df_base.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
+                st.dataframe(df_eq_tab, use_container_width=True, hide_index=True)
+
+            st.divider()
+
             # --- DASHBOARD 4 QUADRANTES ---
             c1, c2 = st.columns(2)
             c3, c4 = st.columns(2)
 
             with c1:
-                st.subheader("🎯 % de Domínio na Equipe")
-                # Cálculo: Quanto o palpiteiro representa dentro da própria equipe
-                df_dom = df_base.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
-                df_total_eq = df_base.groupby('Equipe')['Pontos'].sum().reset_index().rename(columns={'Pontos': 'TotalEquipe'})
-                df_dom = df_dom.merge(df_total_eq, on='Equipe')
-                df_dom['% Equipe'] = (df_dom['Pontos'] / df_dom['TotalEquipe'] * 100).round(1)
-                
-                fig1 = px.bar(df_dom, x='% Equipe', y='Usuario', color='Equipe', 
-                             orientation='h', text='% Equipe',
-                             color_discrete_sequence=px.colors.qualitative.T10)
-                fig1.update_layout(showlegend=False, xaxis=dict(range=[0, 115]), height=300)
-                fig1.update_traces(texttemplate='%{text}%', textposition='outside')
+                st.subheader("🎯 Domínio")
+                # Gráfico de Pizza/Donut
+                fig1 = px.pie(df_soma_grafico, values='Pontos', names='Usuario', hole=0.4,
+                             color_discrete_sequence=px.colors.qualitative.Dark2)
+                fig1.update_layout(showlegend=False, margin=dict(l=20, r=20, t=20, b=20))
                 st.plotly_chart(fig1, use_container_width=True)
 
             with c2:
-                st.subheader("🎚️ Performance Total")
-                # CORRIGIDO: de 'Points' para 'Pontos'
-                max_pts = df_soma_grafico['Pontos'].max() if not df_soma_grafico.empty else 100
+                st.subheader("🎚️ Performance")
+                # Barra Horizontal (Líder no Topo)
                 fig2 = px.bar(df_soma_grafico, x='Pontos', y='Usuario', orientation='h',
-                             text='Pontos', color='Pontos', 
-                             color_continuous_scale='Reds')
+                             text='Pontos', color='Pontos', color_continuous_scale='Reds')
                 fig2.update_traces(textposition='outside')
-                fig2.update_layout(showlegend=False, xaxis=dict(range=[0, max_pts * 1.3]), height=300)
+                fig2.update_layout(showlegend=False, yaxis={'categoryorder':'total ascending'})
                 st.plotly_chart(fig2, use_container_width=True)
 
             with c3:
-                st.subheader("📈 Evolução por GP")
-                # Gráfico de Linhas - Evolução Acumulada
+                st.subheader("📈 Evolução")
+                # Barras empilhadas por GP
                 df_ev = df_base.copy()
                 df_ev['GP'] = pd.Categorical(df_ev['GP'], categories=lista_gps, ordered=True)
-                df_ev_total = df_ev.groupby(['Usuario', 'GP'], observed=True)['Pontos'].sum().groupby(level=0).cumsum().reset_index()
-                
-                fig3 = px.line(df_ev_total, x='GP', y='Pontos', color='Usuario', markers=True)
-                fig3.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
+                fig3 = px.bar(df_ev, x='Usuario', y='Pontos', color='GP', barmode='stack')
+                fig3.update_layout(xaxis={'categoryorder':'total descending'}, showlegend=False)
                 st.plotly_chart(fig3, use_container_width=True)
 
             with c4:
                 st.subheader("🔮 AWS: Chance de Título")
-                total_bolao = df_soma_grafico['Pontos'].sum()
+                total = df_soma_grafico['Pontos'].sum()
                 df_prob = df_soma_grafico.copy()
-                df_prob['Prob'] = ((df_prob['Pontos'] / total_bolao) * 100).round(1) if total_bolao > 0 else 0
+                df_prob['Prob'] = ((df_prob['Pontos'] / total) * 100).round(1) if total > 0 else 0
                 
                 fig4 = go.Figure(go.Bar(
                     x=df_prob['Prob'], y=df_prob['Usuario'], orientation='h',
                     marker=dict(color='gold', line=dict(color='darkgoldenrod', width=2)),
                     text=df_prob['Prob'].astype(str) + '%', textposition='outside'
                 ))
-                fig4.update_layout(xaxis=dict(range=[0, 115]), height=300)
+                # Ajuste de margem para o texto não cortar
+                fig4.update_layout(xaxis=dict(range=[0, 110]))
                 st.plotly_chart(fig4, use_container_width=True)
+
+        else:
+            st.warning("Aguardando dados para processar a telemetria.")
+    else:
+        st.info("Aguardando o primeiro gabarito oficial!")
 
     
 # --- ÁREA: ADMINISTRADOR ---
