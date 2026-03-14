@@ -427,16 +427,17 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ÁREA: CLASSIFICAÇÕES E RAIO-X ---
-# --- ABA: CLASSIFICAÇÕES (DASHBOARD TURBINADO) ---
+# --- ABA: CLASSIFICAÇÕES (DASHBOARD PROFISSIONAL) ---
 elif menu == "Classificações":
     st.header("📊 Dashboard de Performance")
     
+    import plotly.express as px # Garantindo a importação aqui caso esqueça no topo
+
     df_p, _ = ler_dados(ARQUIVO_DADOS)
     df_g, _ = ler_dados(ARQUIVO_GABARITOS)
     
     if not df_p.empty and not df_g.empty:
-        # Lógica de cálculo de pontos (mesma do seu código original)
+        # Lógica de processamento de pontos
         pontos_lista = []
         for _, p in df_p.iterrows():
             g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
@@ -452,69 +453,74 @@ elif menu == "Classificações":
         if pontos_lista:
             df_final = pd.DataFrame(pontos_lista)
             
-            # 1. MÉTRICAS RÁPIDAS (CARDS)
+            # 1. MÉTRICAS EM DESTAQUE (CARDS)
             m1, m2, m3 = st.columns(3)
-            lider = df_final.groupby('Usuario')['Pontos'].sum().idxmax()
-            total_pts = df_final['Pontos'].sum()
-            m1.metric("Líder Atual", lider)
-            m2.metric("Total de Pontos Distribuídos", total_pts)
-            m3.metric("GPs Realizados", len(df_final['GP'].unique()))
+            resumo_user = df_final.groupby('Usuario')['Pontos'].sum().sort_values(ascending=False)
+            lider = resumo_user.index[0]
+            total_pontos = df_final['Pontos'].sum()
+            
+            m1.metric("🏅 Líder Atual", lider)
+            m2.metric("🔢 Total de Pontos", f"{total_pontos} pts")
+            m3.metric("🏁 GPs Processados", len(df_final['GP'].unique()))
             
             st.divider()
 
-            # Criando as Tabs para não poluir a tela
-            tab_graficos, tab_tabelas, tab_etapa = st.tabs(["📈 Gráficos", "📑 Tabelas Gerais", "📍 Detalhes por Etapa"])
+            # 2. ABAS DO DASHBOARD
+            tab_graficos, tab_tabelas, tab_etapa = st.tabs(["📈 Análise Visual", "📑 Rankings Detalhados", "📍 Por Etapa"])
 
             with tab_graficos:
                 col_esq, col_dir = st.columns(2)
                 
                 with col_esq:
-                    # Gráfico de Barras: Ranking de Usuários
+                    # Ranking Geral - Barras Horizontais
                     df_rank_user = df_final.groupby('Usuario')['Pontos'].sum().sort_values(ascending=True).reset_index()
                     fig_user = px.bar(df_rank_user, x='Pontos', y='Usuario', orientation='h',
                                      title="Ranking Geral de Usuários",
+                                     text='Pontos',
                                      color='Pontos', color_continuous_scale='Reds')
                     st.plotly_chart(fig_user, use_container_width=True)
 
                 with col_dir:
-                    # Gráfico de Pizza: Performance por Equipe
+                    # Domínio por Equipes - Gráfico de Donut
                     df_rank_eq = df_final.groupby('Equipe')['Pontos'].sum().reset_index()
                     fig_eq = px.pie(df_rank_eq, values='Pontos', names='Equipe', 
-                                   title="Domínio por Equipes",
-                                   hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+                                   title="Equilíbrio entre Equipes",
+                                   hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                     st.plotly_chart(fig_eq, use_container_width=True)
 
-                # Gráfico de Evolução (Linha)
-                st.subheader("📈 Evolução ao longo do Campeonato")
-                df_evolucao = df_final.groupby(['GP', 'Usuario'])['Pontos'].sum().reset_index()
-                # Ordenar os GPs conforme a lista oficial para o gráfico fazer sentido
-                df_evolucao['GP'] = pd.Categorical(df_evolucao['GP'], categories=lista_gps, ordered=True)
-                df_evolucao = df_evolucao.sort_values('GP')
+                # Gráfico de Evolução por GP
+                st.subheader("📈 Evolução dos Top Competidores")
+                df_evo = df_final.groupby(['GP', 'Usuario'])['Pontos'].sum().reset_index()
+                # Garante que os GPs sigam a ordem do calendário
+                df_evo['GP'] = pd.Categorical(df_evo['GP'], categories=lista_gps, ordered=True)
+                df_evo = df_evo.sort_values('GP')
                 
-                fig_evo = px.line(df_evolucao, x='GP', y='Pontos', color='Usuario', markers=True,
-                                 title="Pontos Ganhos por GP")
+                fig_evo = px.line(df_evo, x='GP', y='Pontos', color='Usuario', markers=True,
+                                 title="Pontuação por Corrida")
                 st.plotly_chart(fig_evo, use_container_width=True)
 
             with tab_tabelas:
                 c1, c2 = st.columns(2)
                 with c1:
-                    st.subheader("Top Usuários")
-                    st.table(df_final.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index())
+                    st.subheader("Tabela de Usuários")
+                    rank_total = df_final.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
+                    st.dataframe(rank_total, hide_index=True, use_container_width=True)
                 with c2:
-                    st.subheader("Top Equipes")
-                    st.table(df_final.groupby('Equipe')['Pontos'].sum().sort_values(ascending=False).reset_index())
+                    st.subheader("Tabela de Equipes")
+                    rank_eq = df_final.groupby('Equipe')['Pontos'].sum().sort_values(ascending=False).reset_index()
+                    st.dataframe(rank_eq, hide_index=True, use_container_width=True)
 
             with tab_etapa:
-                gp_escolhido = st.selectbox("Selecione o GP para ver o detalhamento:", lista_gps)
-                etapa_df = df_final[df_final['GP'] == gp_escolhido]
+                gp_f = st.selectbox("Filtrar resultado por GP:", lista_gps)
+                etapa_df = df_final[df_final['GP'] == gp_f]
                 if not etapa_df.empty:
-                    st.dataframe(etapa_df.sort_values(by="Pontos", ascending=False), hide_index=True, use_container_width=True)
+                    st.table(etapa_df.sort_values(by="Pontos", ascending=False).reset_index(drop=True))
                 else:
-                    st.info(f"Nenhum dado processado para o GP de {gp_escolhido}.")
+                    st.info(f"Nenhum gabarito lançado para o GP de {gp_f} ainda.")
         else:
-            st.warning("Ainda não há pontuações calculadas. Verifique se os gabaritos foram lançados.")
+            st.warning("Gabaritos ainda não lançados. Dashboard aguardando dados.")
     else:
-        st.info("Aguardando o lançamento dos primeiros palpites e resultados oficiais para gerar o Dashboard.")
+        st.info("O Dashboard aparecerá assim que houver palpites e resultados oficiais no sistema.")
 
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
