@@ -434,7 +434,7 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ABA: CLASSIFICAÇÕES (DASHBOARD CORRIGIDO) ---
+# --- ABA: CLASSIFICAÇÕES (DASHBOARD FINAL CORRIGIDO) ---
 elif menu == "Classificações":
     st.header("📊 Dashboard de Performance")
     
@@ -476,30 +476,32 @@ elif menu == "Classificações":
             col_graf1, col_graf2 = st.columns(2)
 
             with col_graf1:
-                # Ranking Geral - Barras Horizontais
+                # Ranking Geral
                 fig_user = px.bar(df_soma, x='Pontos', y='Usuario', orientation='h',
                                  title="Ranking Geral de Pilotos",
                                  text='Pontos',
                                  color='Pontos', 
-                                 color_continuous_scale='reds') # 'reds' em minúsculo é mais seguro
-                fig_user.update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig_user, use_column_width=True) # Usando column_width para versão 1.31.0
+                                 color_continuous_scale='reds')
+                fig_user.update_layout(yaxis={'categoryorder':'total ascending'}, margin=dict(l=20, r=20, t=40, b=20))
+                # No Plotly a largura é automática no Streamlit
+                st.plotly_chart(fig_user, use_container_width=True)
 
             with col_graf2:
-                # Desempenho por Equipes - Gráfico de Rosca
+                # Pontos por Equipe
                 df_eq = df_final.groupby('Equipe')['Pontos'].sum().reset_index()
-                # Usando Set1 que é uma paleta qualitativa padrão do Plotly
                 fig_eq = px.pie(df_eq, values='Pontos', names='Equipe', 
                                title="Pontos por Equipe",
-                               hole=0.4, color_discrete_sequence=px.colors.qualitative.Set1)
-                st.plotly_chart(fig_eq, use_column_width=True)
+                               hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_eq.update_layout(margin=dict(l=20, r=20, t=40, b=20))
+                st.plotly_chart(fig_eq, use_container_width=True)
 
             # 3. TABELAS
             st.divider()
             tab1, tab2 = st.tabs(["📑 Tabela Geral", "📍 Pontuação por GP"])
             
             with tab1:
-                st.dataframe(df_soma, use_column_width=True)
+                # Removido o parâmetro que causou o erro
+                st.dataframe(df_soma)
             
             with tab2:
                 gp_selecionado = st.selectbox("Escolha o GP para ver detalhes:", lista_gps)
@@ -509,10 +511,9 @@ elif menu == "Classificações":
                 else:
                     st.info(f"Nenhum gabarito processado para o GP {gp_selecionado}.")
         else:
-            st.warning("Gabaritos ainda não lançados. Dashboard aguardando dados.")
+            st.warning("Aguardando lançamentos para gerar o Dashboard.")
     else:
         st.info("O Dashboard aparecerá aqui assim que houver palpites e resultados oficiais!")
-
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
     senha = st.sidebar.text_input("Senha de Diretor de Prova:", type="password")
