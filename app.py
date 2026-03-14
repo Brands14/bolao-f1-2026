@@ -434,17 +434,17 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ABA: CLASSIFICAÇÕES (COM DASHBOARD) ---
+# --- ABA: CLASSIFICAÇÕES (DASHBOARD CORRIGIDO) ---
 elif menu == "Classificações":
     st.header("📊 Dashboard de Performance")
     
-    import plotly.express as px # Importação necessária para os gráficos
+    import plotly.express as px 
 
     df_p, _ = ler_dados(ARQUIVO_DADOS)
     df_g, _ = ler_dados(ARQUIVO_GABARITOS)
     
     if not df_p.empty and not df_g.empty:
-        # Cálculo de pontos (Lógica original preservada)
+        # Cálculo de pontos
         pontos_lista = []
         for _, p in df_p.iterrows():
             g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
@@ -459,13 +459,12 @@ elif menu == "Classificações":
         
         if pontos_lista:
             df_final = pd.DataFrame(pontos_lista)
-            
-            # 1. MÉTRICAS RÁPIDAS (Cards de destaque)
             df_soma = df_final.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
             
+            # 1. MÉTRICAS RÁPIDAS
             m1, m2, m3 = st.columns(3)
             with m1:
-                st.metric("🏅 Líder Atual", df_soma.iloc[0]['Usuario'])
+                st.metric("🏅 Líder Atual", df_soma.iloc[0]['Usuario'] if not df_soma.empty else "---")
             with m2:
                 st.metric("🏁 GPs Realizados", len(df_final['GP'].unique()))
             with m3:
@@ -481,24 +480,26 @@ elif menu == "Classificações":
                 fig_user = px.bar(df_soma, x='Pontos', y='Usuario', orientation='h',
                                  title="Ranking Geral de Pilotos",
                                  text='Pontos',
-                                 color='Pontos', color_continuous_scale='Reds')
+                                 color='Pontos', 
+                                 color_continuous_scale='reds') # 'reds' em minúsculo é mais seguro
                 fig_user.update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig_user, use_container_width=True)
+                st.plotly_chart(fig_user, use_column_width=True) # Usando column_width para versão 1.31.0
 
             with col_graf2:
                 # Desempenho por Equipes - Gráfico de Rosca
                 df_eq = df_final.groupby('Equipe')['Pontos'].sum().reset_index()
+                # Usando Set1 que é uma paleta qualitativa padrão do Plotly
                 fig_eq = px.pie(df_eq, values='Pontos', names='Equipe', 
                                title="Pontos por Equipe",
-                               hole=0.4, color_discrete_sequence=px.colors.qualitative.Reds)
-                st.plotly_chart(fig_eq, use_container_width=True)
+                               hole=0.4, color_discrete_sequence=px.colors.qualitative.Set1)
+                st.plotly_chart(fig_eq, use_column_width=True)
 
-            # 3. TABELAS (Abaixo dos gráficos para conferência)
+            # 3. TABELAS
             st.divider()
             tab1, tab2 = st.tabs(["📑 Tabela Geral", "📍 Pontuação por GP"])
             
             with tab1:
-                st.dataframe(df_soma, use_container_width=True, hide_index=True)
+                st.dataframe(df_soma, use_column_width=True)
             
             with tab2:
                 gp_selecionado = st.selectbox("Escolha o GP para ver detalhes:", lista_gps)
