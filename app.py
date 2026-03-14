@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
-import time
 from datetime import datetime
 import pytz
 import os
+import time
 import urllib.request
 import urllib.error
 import json
@@ -395,23 +395,21 @@ if menu == "Enviar Palpite":
                         "MaisUltrapassagens": m_ultrapassagens
                     }
                     
-                   if email_confirmacao == email_cadastrado:
+                    if email_confirmacao == email_cadastrado:
                     if guardar_dados(dados_palpite, ARQUIVO_DADOS):
                         enviar_recibo_email(dados_palpite, email_confirmacao)
                         
-                        # --- EFEITO DE F1 (ADICIONADO AQUI) ---
+                        # Efeito de F1
                         st.toast(f'Palpite Gravado! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
                         
                         placeholder_animacao = st.empty()
-                        for _ in range(3): 
+                        for _ in range(3):
                             placeholder_animacao.markdown("<h1 style='text-align: center; font-size: 60px;'>🏎️ 🏁 🏎️ 🏁 🏎️</h1>", unsafe_allow_html=True)
                             time.sleep(0.4)
                             placeholder_animacao.empty()
                             time.sleep(0.2)
                         
                         st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi gravado.")
-                        # ---------------------------------------
-                        
                     else:
                         st.error("Ops! Tivemos um problema com o servidor do GitHub. Tente novamente.")
                 else:
