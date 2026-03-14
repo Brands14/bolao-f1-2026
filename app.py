@@ -36,16 +36,9 @@ ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 NOME_ARQUIVO_LOGO = "WhatsApp Image 2026-02-24 at 16.12.18.png" 
 
 try:
-    # Tenta carregar localmente primeiro
     st.image("WhatsApp Image 2026-02-24 at 16.12.18.png", use_container_width=True)
 except:
-    try:
-        # Se falhar, tenta puxar direto do link "Raw" do seu GitHub
-        url_logo = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/{"WhatsApp Image 2026-02-24 at 16.12.18.png".replace(' ', '%20')}"
-        st.image(url_logo, use_container_width=True)
-    except:
-        # Se tudo falhar, coloca o título em texto para não ficar feio
-        st.title("🏁 Palpites F1 2026")
+    st.title("🏁 Palpites F1 2026")
 
 participantes = [
     "Alaerte Fleury", "César Gaudie", "Delvânia Belo", "Emilio Jacinto", 
