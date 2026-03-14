@@ -31,10 +31,24 @@ except:
 ARQUIVO_DADOS = "palpites_permanentes_2026.csv" 
 ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 
+# --- LOGO (VERSÃO REFORMULADA) ---
+# Se você renomeou no GitHub para logo.png, mude aqui para "logo.png"
+NOME_ARQUIVO_LOGO = "WhatsApp Image 2026-02-24 at 16.12.18.png" 
+
 try:
-    st.image("logo_bolao.png", use_container_width=True)
+    # Tentativa 1: Caminho local direto
+    st.image(logo_bolao.png, use_container_width=True)
 except:
-    st.title("🏁 Palpites F1 2026")
+    try:
+        # Tentativa 2: Link Direto do GitHub (Raw) usando suas variáveis
+        # O .replace serve para transformar espaços em códigos que o navegador entende
+        nome_url = logo_bolao.png.replace(" ", "%20")
+        url_raw = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/{nome_url}"
+        st.image(url_raw, use_container_width=True)
+    except Exception as e:
+        # Se falhar tudo, mostra o título em texto para o app não ficar vazio
+        st.markdown(f"### 🏎️ Palpites F1 2026")
+        st.caption(f"Erro ao carregar imagem: {e}")
 
 participantes = [
     "Alaerte Fleury", "César Gaudie", "Delvânia Belo", "Emilio Jacinto", 
