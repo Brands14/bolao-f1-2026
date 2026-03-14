@@ -494,57 +494,6 @@ elif menu == "Classificações":
 
             st.divider()
 
-        # --- ABA: CLASSIFICAÇÕES E DASHBOARD ORGANIZADO ---
-elif menu == "Classificações":
-    st.header("📊 Telemetria do Campeonato")
-    
-    import plotly.express as px 
-    import plotly.graph_objects as go
-
-    df_p, _ = ler_dados(ARQUIVO_DADOS)
-    df_g, _ = ler_dados(ARQUIVO_GABARITOS)
-    
-    if not df_p.empty and not df_g.empty:
-        pontos_lista = []
-        for _, p in df_p.iterrows():
-            g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
-            if not g.empty:
-                pts = calcular_pontos_sessao(p, g.iloc[0])
-                pontos_lista.append({
-                    "GP": p['GP'], 
-                    "Usuario": str(p.get('Usuario', 'N/A')), 
-                    "Equipe": str(p.get('Equipe', 'N/A')),
-                    "Pontos": int(pts)
-                })
-        
-        if pontos_lista:
-            df_base = pd.DataFrame(pontos_lista)
-            # Soma total por usuário ordenado para os gráficos
-            df_soma_grafico = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=True)
-            
-            # --- TABELAS SUPERIORES ---
-            tab_geral, tab_gp, tab_equipe = st.tabs(["🏆 Ranking Geral", "📍 Por Grande Prêmio", "🏎️ Mundial de Construtores"])
-            
-            with tab_geral:
-                df_ranking = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
-                df_ranking.index = range(1, len(df_ranking) + 1)
-                st.dataframe(df_ranking, use_container_width=True)
-
-            with tab_gp:
-                gp_sel = st.selectbox("Selecione o GP:", lista_gps, key="sel_gp_dash")
-                df_rodada = df_base[df_base['GP'] == gp_sel].groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
-                if not df_rodada.empty:
-                    df_rodada.index = range(1, len(df_rodada) + 1)
-                    st.dataframe(df_rodada, use_container_width=True)
-                else:
-                    st.info("Sem dados para este GP.")
-
-            with tab_equipe:
-                df_eq_tab = df_base.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                st.dataframe(df_eq_tab, use_container_width=True, hide_index=True)
-
-            st.divider()
-
             # --- DASHBOARD 4 QUADRANTES ---
             c1, c2 = st.columns(2)
             c3, c4 = st.columns(2)
@@ -594,8 +543,7 @@ elif menu == "Classificações":
             st.warning("Aguardando dados para processar a telemetria.")
     else:
         st.info("Aguardando o primeiro gabarito oficial!")
-
-    
+        
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
     senha = st.sidebar.text_input("Senha de Diretor de Prova:", type="password")
