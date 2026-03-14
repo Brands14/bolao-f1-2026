@@ -547,11 +547,6 @@ elif menu == "Classificações":
                 fig4.update_layout(height=350, margin=dict(l=0,r=40,t=30,b=0), 
                                   xaxis=dict(range=[0, rank_prob['Prob'].max() * 1.2 if not rank_prob.empty else 110]))
                 st.plotly_chart(fig4, use_container_width=True)
-
-        else:
-            st.info("Aguardando o primeiro GP ser computado para gerar os gráficos.")
-    else:
-        st.warning("Sem dados de palpites ou gabaritos no GitHub.")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
