@@ -434,7 +434,7 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ABA: CLASSIFICAÇÕES (DASHBOARD FINAL CORRIGIDO) ---
+# --- ABA: CLASSIFICAÇÕES (DASHBOARD AJUSTADO) ---
 elif menu == "Classificações":
     st.header("📊 Dashboard de Performance")
     
@@ -444,7 +444,6 @@ elif menu == "Classificações":
     df_g, _ = ler_dados(ARQUIVO_GABARITOS)
     
     if not df_p.empty and not df_g.empty:
-        # Cálculo de pontos
         pontos_lista = []
         for _, p in df_p.iterrows():
             g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
@@ -472,48 +471,51 @@ elif menu == "Classificações":
 
             st.divider()
 
-            # 2. GRÁFICOS INTERATIVOS
+            # 2. GRÁFICOS
             col_graf1, col_graf2 = st.columns(2)
-
             with col_graf1:
-                # Ranking Geral
                 fig_user = px.bar(df_soma, x='Pontos', y='Usuario', orientation='h',
-                                 title="Ranking Geral de Pilotos",
-                                 text='Pontos',
-                                 color='Pontos', 
-                                 color_continuous_scale='reds')
+                                 title="Ranking Geral de Pilotos", text='Pontos',
+                                 color='Pontos', color_continuous_scale='reds')
                 fig_user.update_layout(yaxis={'categoryorder':'total ascending'}, margin=dict(l=20, r=20, t=40, b=20))
-                # No Plotly a largura é automática no Streamlit
                 st.plotly_chart(fig_user, use_container_width=True)
 
             with col_graf2:
-                # Pontos por Equipe
                 df_eq = df_final.groupby('Equipe')['Pontos'].sum().reset_index()
-                fig_eq = px.pie(df_eq, values='Pontos', names='Equipe', 
-                               title="Pontos por Equipe",
+                fig_eq = px.pie(df_eq, values='Pontos', names='Equipe', title="Pontos por Equipe",
                                hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig_eq.update_layout(margin=dict(l=20, r=20, t=40, b=20))
                 st.plotly_chart(fig_eq, use_container_width=True)
 
-            # 3. TABELAS
+            # 3. CONSULTA POR GP (FOCO NOS USUÁRIOS)
             st.divider()
-            tab1, tab2 = st.tabs(["📑 Tabela Geral", "📍 Pontuação por GP"])
+            st.subheader("📍 Desempenho dos Palpiteiros por GP")
             
-            with tab1:
-                # Removido o parâmetro que causou o erro
+            gp_selecionado = st.selectbox("Selecione o GP para ver o ranking da rodada:", lista_gps)
+            
+            # Filtra os pontos apenas do GP escolhido e soma por Usuário
+            df_gp = df_final[df_final['GP'] == gp_selecionado]
+            
+            if not df_gp.empty:
+                # Agrupa por usuário para somar caso tenha Qualy + Corrida no mesmo GP
+                ranking_gp = df_gp.groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
+                
+                # Adiciona uma coluna de posição (1º, 2º...)
+                ranking_gp.index = ranking_gp.index + 1
+                ranking_gp.columns = ['Palpiteiro', 'Pontos na Rodada']
+                
+                st.table(ranking_gp)
+            else:
+                st.info(f"O resultado do GP {gp_selecionado} ainda não foi lançado.")
+                
+            # Tabela Geral escondida em expansor para não poluir
+            with st.expander("Ver Classificação Geral Completa (Tabela)"):
                 st.dataframe(df_soma)
-            
-            with tab2:
-                gp_selecionado = st.selectbox("Escolha o GP para ver detalhes:", lista_gps)
-                df_gp = df_final[df_final['GP'] == gp_selecionado]
-                if not df_gp.empty:
-                    st.table(df_gp.sort_values(by="Pontos", ascending=False))
-                else:
-                    st.info(f"Nenhum gabarito processado para o GP {gp_selecionado}.")
         else:
             st.warning("Aguardando lançamentos para gerar o Dashboard.")
     else:
         st.info("O Dashboard aparecerá aqui assim que houver palpites e resultados oficiais!")
+        
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
     senha = st.sidebar.text_input("Senha de Diretor de Prova:", type="password")
