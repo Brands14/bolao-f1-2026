@@ -1,4 +1,4 @@
-import plotly.express as px
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -12,6 +12,7 @@ import io
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import plotly.express as px
 
 # 1. Configurações Iniciais
 st.set_page_config(page_title="Palpites F1 2026", layout="wide")
