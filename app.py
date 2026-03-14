@@ -434,7 +434,7 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ABA: CLASSIFICAÇÕES (DASHBOARD AJUSTADO) ---
+# --- ABA: CLASSIFICAÇÕES (DASHBOARD FINAL) ---
 elif menu == "Classificações":
     st.header("📊 Dashboard de Performance")
     
@@ -475,46 +475,41 @@ elif menu == "Classificações":
             col_graf1, col_graf2 = st.columns(2)
             with col_graf1:
                 fig_user = px.bar(df_soma, x='Pontos', y='Usuario', orientation='h',
-                                 title="Ranking Geral de Pilotos", text='Pontos',
+                                 title="Ranking Individual (Palpiteiros)", text='Pontos',
                                  color='Pontos', color_continuous_scale='reds')
                 fig_user.update_layout(yaxis={'categoryorder':'total ascending'}, margin=dict(l=20, r=20, t=40, b=20))
                 st.plotly_chart(fig_user, use_container_width=True)
 
             with col_graf2:
+                # GRÁFICO DE EQUIPES (EXPLICADO ABAIXO)
                 df_eq = df_final.groupby('Equipe')['Pontos'].sum().reset_index()
-                fig_eq = px.pie(df_eq, values='Pontos', names='Equipe', title="Pontos por Equipe",
-                               hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_eq = px.pie(df_eq, values='Pontos', names='Equipe', title="Ranking Geral de Equipes",
+                               hole=0.4, color_discrete_sequence=px.colors.qualitative.Bold)
                 fig_eq.update_layout(margin=dict(l=20, r=20, t=40, b=20))
                 st.plotly_chart(fig_eq, use_container_width=True)
 
-            # 3. CONSULTA POR GP (FOCO NOS USUÁRIOS)
+            # 3. CONSULTA POR GP (FILTRO DE PALPITEIROS)
             st.divider()
             st.subheader("📍 Desempenho dos Palpiteiros por GP")
             
             gp_selecionado = st.selectbox("Selecione o GP para ver o ranking da rodada:", lista_gps)
-            
-            # Filtra os pontos apenas do GP escolhido e soma por Usuário
             df_gp = df_final[df_final['GP'] == gp_selecionado]
             
             if not df_gp.empty:
-                # Agrupa por usuário para somar caso tenha Qualy + Corrida no mesmo GP
+                # Agrupa apenas por usuário para a tabela de consulta
                 ranking_gp = df_gp.groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
-                
-                # Adiciona uma coluna de posição (1º, 2º...)
                 ranking_gp.index = ranking_gp.index + 1
                 ranking_gp.columns = ['Palpiteiro', 'Pontos na Rodada']
-                
                 st.table(ranking_gp)
             else:
                 st.info(f"O resultado do GP {gp_selecionado} ainda não foi lançado.")
                 
-            # Tabela Geral escondida em expansor para não poluir
             with st.expander("Ver Classificação Geral Completa (Tabela)"):
                 st.dataframe(df_soma)
         else:
-            st.warning("Aguardando lançamentos para gerar o Dashboard.")
+            st.warning("Aguardando lançamentos.")
     else:
-        st.info("O Dashboard aparecerá aqui assim que houver palpites e resultados oficiais!")
+        st.info("O Dashboard aparecerá aqui após os resultados oficiais!")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
