@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from datetime import datetime
 import pytz
 import os
@@ -426,97 +427,100 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ÁREA: CLASSIFICAÇÕES E RAIO-X ---
+# --- ABA: CLASSIFICAÇÕES (DASHBOARD PROFISSIONAL) ---
 elif menu == "Classificações":
-    st.header("🏆 Classificações do Campeonato F1 2026")
+    st.header("📊 Dashboard de Performance")
     
-    df_palpites, _ = ler_dados(ARQUIVO_DADOS)
-    df_gabaritos, _ = ler_dados(ARQUIVO_GABARITOS)
+    import plotly.express as px # Garantindo a importação aqui caso esqueça no topo
+
+    df_p, _ = ler_dados(ARQUIVO_DADOS)
+    df_g, _ = ler_dados(ARQUIVO_GABARITOS)
     
-    if not df_palpites.empty and not df_gabaritos.empty:
-        resultados = []
-        for index_p, row_p in df_palpites.iterrows():
-            gp = row_p.get('GP', '')
-            tipo = row_p.get('Tipo', '')
-            
-            gabarito_match = df_gabaritos[(df_gabaritos['GP'] == gp) & (df_gabaritos['Tipo'] == tipo)]
-            
-            if not gabarito_match.empty:
-                gabarito_oficial = gabarito_match.iloc[-1]
-                pontos = calcular_pontos_sessao(row_p, gabarito_oficial)
-                resultados.append({"Usuario": row_p['Usuario'], "Equipe": row_p.get('Equipe', 'Sem Equipe'), "Pontos": pontos, "GP": gp})
+    if not df_p.empty and not df_g.empty:
+        # Lógica de processamento de pontos
+        pontos_lista = []
+        for _, p in df_p.iterrows():
+            g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
+            if not g.empty:
+                pts = calcular_pontos_sessao(p, g.iloc[0])
+                pontos_lista.append({
+                    "GP": p['GP'], 
+                    "Usuario": p['Usuario'], 
+                    "Equipe": p['Equipe'], 
+                    "Pontos": pts
+                })
         
-        if resultados:
-            df_resultados = pd.DataFrame(resultados)
-            st.markdown("### 🔍 Filtro de Resultados")
-            filtro_classificacao = st.selectbox("Selecione a visualização desejada:", ["Geral (Campeonato Completo)"] + lista_gps)
+        if pontos_lista:
+            df_final = pd.DataFrame(pontos_lista)
             
-            if filtro_classificacao != "Geral (Campeonato Completo)":
-                df_resultados = df_resultados[df_resultados["GP"] == filtro_classificacao]
-                st.subheader(f"📊 Resultado Específico: GP de {filtro_classificacao}")
-            else:
-                st.subheader("📊 Classificação Geral do Campeonato")
+            # 1. MÉTRICAS EM DESTAQUE (CARDS)
+            m1, m2, m3 = st.columns(3)
+            resumo_user = df_final.groupby('Usuario')['Pontos'].sum().sort_values(ascending=False)
+            lider = resumo_user.index[0]
+            total_pontos = df_final['Pontos'].sum()
             
-            if not df_resultados.empty:
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("**👤 Mundial de Pilotos**")
-                    ranking_geral = df_resultados.groupby('Usuario')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                    ranking_geral.index = range(1, len(ranking_geral) + 1)
-                    st.dataframe(ranking_geral, use_container_width=True)
-                    
-                with col2:
-                    st.markdown("**🏎️ Mundial de Construtores**")
-                    ranking_equipas = df_resultados.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                    ranking_equipas.index = range(1, len(ranking_equipas) + 1)
-                    st.dataframe(ranking_equipas, use_container_width=True)
-            else:
-                st.warning(f"Ainda não há pontuações calculadas para o GP de {filtro_classificacao}.")
-                
+            m1.metric("🏅 Líder Atual", lider)
+            m2.metric("🔢 Total de Pontos", f"{total_pontos} pts")
+            m3.metric("🏁 GPs Processados", len(df_final['GP'].unique()))
+            
             st.divider()
-            st.subheader("🕵️‍♂️ Raio-X dos Palpites (Auditoria Pública)")
-            col_rx1, col_rx2 = st.columns(2)
-            with col_rx1:
-                rx_gp = st.selectbox("Selecione o GP para o Raio-X:", lista_gps)
-            with col_rx2:
-                rx_opcoes = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"] if rx_gp in sprint_gps else ["Classificação Principal (Pole)", "Corrida Principal"]
-                rx_tipo = st.selectbox("Sessão do Raio-X:", rx_opcoes)
+
+            # 2. ABAS DO DASHBOARD
+            tab_graficos, tab_tabelas, tab_etapa = st.tabs(["📈 Análise Visual", "📑 Rankings Detalhados", "📍 Por Etapa"])
+
+            with tab_graficos:
+                col_esq, col_dir = st.columns(2)
                 
-            gabarito_rx = df_gabaritos[(df_gabaritos['GP'] == rx_gp) & (df_gabaritos['Tipo'] == rx_tipo)]
-            
-            if not gabarito_rx.empty:
-                gabarito_oficial_rx = gabarito_rx.iloc[-1]
-                palpites_rx = df_palpites[(df_palpites['GP'] == rx_gp) & (df_palpites['Tipo'] == rx_tipo)]
+                with col_esq:
+                    # Ranking Geral - Barras Horizontais
+                    df_rank_user = df_final.groupby('Usuario')['Pontos'].sum().sort_values(ascending=True).reset_index()
+                    fig_user = px.bar(df_rank_user, x='Pontos', y='Usuario', orientation='h',
+                                     title="Ranking Geral de Usuários",
+                                     text='Pontos',
+                                     color='Pontos', color_continuous_scale='Reds')
+                    st.plotly_chart(fig_user, use_container_width=True)
+
+                with col_dir:
+                    # Domínio por Equipes - Gráfico de Donut
+                    df_rank_eq = df_final.groupby('Equipe')['Pontos'].sum().reset_index()
+                    fig_eq = px.pie(df_rank_eq, values='Pontos', names='Equipe', 
+                                   title="Equilíbrio entre Equipes",
+                                   hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                    st.plotly_chart(fig_eq, use_container_width=True)
+
+                # Gráfico de Evolução por GP
+                st.subheader("📈 Evolução dos Top Competidores")
+                df_evo = df_final.groupby(['GP', 'Usuario'])['Pontos'].sum().reset_index()
+                # Garante que os GPs sigam a ordem do calendário
+                df_evo['GP'] = pd.Categorical(df_evo['GP'], categories=lista_gps, ordered=True)
+                df_evo = df_evo.sort_values('GP')
                 
-                if not palpites_rx.empty:
-                    usuarios_que_palpitaram = sorted(palpites_rx['Usuario'].unique())
-                    rx_usuario = st.selectbox("Selecione o Palpiteiro para abrir o Raio-X:", [""] + usuarios_que_palpitaram)
-                    
-                    if rx_usuario:
-                        palpite_usuario = palpites_rx[palpites_rx['Usuario'] == rx_usuario].iloc[-1]
-                        st.markdown(f"**Comparativo: Palpite de {rx_usuario} vs Gabarito Oficial**")
-                        
-                        chaves_comparacao = []
-                        if "Pole" in rx_tipo: chaves_comparacao = ['Pole']
-                        elif "Corrida Principal" == rx_tipo: chaves_comparacao = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9', 'P10', 'VoltaRapida', 'PrimeiroAbandono', 'MaisUltrapassagens']
-                        elif "Corrida Sprint" == rx_tipo: chaves_comparacao = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8']
-                            
-                        for chave in chaves_comparacao:
-                            val_p = str(palpite_usuario.get(chave, '')).strip()
-                            val_g = str(gabarito_oficial_rx.get(chave, '')).strip()
-                            nome_chave = chave.replace('P', 'º Colocado').replace('VoltaRapida', 'Melhor Volta').replace('PrimeiroAbandono', '1º Abandono').replace('MaisUltrapassagens', 'Mais Ultrapassagens')
-                            
-                            if val_p == val_g and val_p != "" and val_p != "nan":
-                                st.success(f"✅ **{nome_chave}:** {val_p}")
-                            else:
-                                if val_p == "" or val_p == "nan": val_p = "Em branco"
-                                st.error(f"❌ **{nome_chave}:** Apostou em *{val_p}* | Oficial: **{val_g}**")
+                fig_evo = px.line(df_evo, x='GP', y='Pontos', color='Usuario', markers=True,
+                                 title="Pontuação por Corrida")
+                st.plotly_chart(fig_evo, use_container_width=True)
+
+            with tab_tabelas:
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.subheader("Tabela de Usuários")
+                    rank_total = df_final.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
+                    st.dataframe(rank_total, hide_index=True, use_container_width=True)
+                with c2:
+                    st.subheader("Tabela de Equipes")
+                    rank_eq = df_final.groupby('Equipe')['Pontos'].sum().sort_values(ascending=False).reset_index()
+                    st.dataframe(rank_eq, hide_index=True, use_container_width=True)
+
+            with tab_etapa:
+                gp_f = st.selectbox("Filtrar resultado por GP:", lista_gps)
+                etapa_df = df_final[df_final['GP'] == gp_f]
+                if not etapa_df.empty:
+                    st.table(etapa_df.sort_values(by="Pontos", ascending=False).reset_index(drop=True))
                 else:
-                    st.info("Ninguém enviou palpite para esta sessão.")
-            else:
-                st.warning("🔒 O Raio-X ainda está bloqueado (Sem Gabarito).")
+                    st.info(f"Nenhum gabarito lançado para o GP de {gp_f} ainda.")
+        else:
+            st.warning("Gabaritos ainda não lançados. Dashboard aguardando dados.")
     else:
-        st.warning("Banco de dados permanente está vazio.")
+        st.info("O Dashboard aparecerá assim que houver palpites e resultados oficiais no sistema.")
 
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
