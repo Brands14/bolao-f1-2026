@@ -434,9 +434,9 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ABA: CLASSIFICAÇÕES (CORREÇÃO DE ORDEM DOS GRÁFICOS) ---
+# --- ABA: CLASSIFICAÇÕES (GRÁFICO DE EVOLUÇÃO POR LINHAS) ---
 elif menu == "Classificações":
-    st.header("📊 Dashboard de Performance")
+    st.header("📈 Evolução do Campeonato")
     
     import plotly.express as px 
 
@@ -452,62 +452,60 @@ elif menu == "Classificações":
                 pontos_lista.append({
                     "GP": p['GP'], 
                     "Usuario": p.get('Usuario', 'N/A'), 
-                    "Equipe": p.get('Equipe', 'N/A'), 
                     "Pontos": pts
                 })
         
         if pontos_lista:
-            df_final = pd.DataFrame(pontos_lista)
-            df_soma = df_final.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
+            df_evolucao = pd.DataFrame(pontos_lista)
             
-            # 1. MÉTRICAS RÁPIDAS
-            m1, m2, m3 = st.columns(3)
-            with m1:
-                st.metric("🏅 Líder Atual", df_soma.iloc[0]['Usuario'] if not df_soma.empty else "---")
-            with m2:
-                st.metric("🏁 GPs Realizados", len(df_final['GP'].unique()))
-            with m3:
-                st.metric("🔥 Total de Pontos", int(df_final['Pontos'].sum()))
+            # Criar a soma acumulada para o gráfico de linhas (Progressão)
+            # Primeiro, garantimos a ordem cronológica dos GPs conforme sua lista_gps
+            df_evolucao['GP'] = pd.Categorical(df_evolucao['GP'], categories=lista_gps, ordered=True)
+            df_evolucao = df_evolucao.sort_values(['Usuario', 'GP'])
+            
+            # Soma os pontos acumulados por GP para cada usuário
+            df_evolucao['Pontos Acumulados'] = df_evolucao.groupby('Usuario')['Pontos'].cumsum()
 
+            # --- GRÁFICO DE LINHAS (PROGRESSO) ---
+            st.subheader("🏁 Progresso dos Palpiteiros")
+            fig_linha = px.line(
+                df_evolucao, 
+                x='GP', 
+                y='Pontos Acumulados', 
+                color='Usuario',
+                markers=True,
+                title="Evolução da Pontuação ao Longo da Temporada",
+                labels={'Pontos Acumulados': 'Total de Pontos', 'GP': 'Grande Prêmio'}
+            )
+            
+            # Melhora o visual do gráfico
+            fig_linha.update_layout(hovermode="x unified")
+            st.plotly_chart(fig_linha, use_container_width=True)
+
+            
+
+            # --- MÉTRICAS E CONSULTA ---
             st.divider()
-
-            # 2. GRÁFICOS
-            col_graf1, col_graf2 = st.columns(2)
-            with col_graf1:
-                # CORREÇÃO AQUI: 'total descending' faz o maior ficar no TOPO
-                fig_user = px.bar(df_soma, x='Pontos', y='Usuario', orientation='h',
-                                 title="Ranking Individual (Palpiteiros)", text='Pontos',
-                                 color='Pontos', color_continuous_scale='reds')
-                
-                # Esta linha abaixo é o segredo para colocar o George no topo!
-                fig_user.update_layout(yaxis={'categoryorder':'total ascending'}, margin=dict(l=20, r=20, t=40, b=20))
-                
-                st.plotly_chart(fig_user, use_container_width=True)
-
-            with col_graf2:
-                df_eq = df_final.groupby('Equipe')['Pontos'].sum().reset_index()
-                fig_eq = px.pie(df_eq, values='Pontos', names='Equipe', title="Ranking Geral de Equipes",
-                               hole=0.4, color_discrete_sequence=px.colors.qualitative.Bold)
-                fig_eq.update_layout(margin=dict(l=20, r=20, t=40, b=20))
-                st.plotly_chart(fig_eq, use_container_width=True)
-
-            # 3. CONSULTA POR GP
-            st.divider()
-            st.subheader("📍 Desempenho dos Palpiteiros por GP")
+            col1, col2 = st.columns([1, 2])
             
-            gp_selecionado = st.selectbox("Selecione o GP para ver o ranking da rodada:", lista_gps)
-            df_gp = df_final[df_final['GP'] == gp_selecionado]
-            
-            if not df_gp.empty:
-                ranking_gp = df_gp.groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
-                ranking_gp.index = ranking_gp.index + 1
-                ranking_gp.columns = ['Palpiteiro', 'Pontos na Rodada']
-                st.table(ranking_gp)
-            else:
-                st.info(f"O resultado do GP {gp_selecionado} ainda não foi lançado.")
-                
-            with st.expander("Ver Classificação Geral Completa (Tabela)"):
-                st.dataframe(df_soma)
+            with col1:
+                st.subheader("🏆 Top 3 Atual")
+                df_ranking = df_evolucao.groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
+                for i, row in df_ranking.head(3).iterrows():
+                    st.write(f"**{i+1}º {row['Usuario']}**: {row['Pontos']} pts")
+
+            with col2:
+                st.subheader("📍 Desempenho na Rodada")
+                gp_sel = st.selectbox("Filtrar por GP:", lista_gps)
+                df_rodada = df_evolucao[df_evolucao['GP'] == gp_sel].groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
+                if not df_rodada.empty:
+                    st.dataframe(df_rodada, hide_index=True)
+                else:
+                    st.info("Aguardando resultados deste GP.")
+        else:
+            st.warning("Aguardando lançamentos para gerar o gráfico.")
+    else:
+        st.info("O Dashboard aparecerá aqui assim que houver palpites e resultados oficiais!")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
