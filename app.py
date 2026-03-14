@@ -32,8 +32,9 @@ ARQUIVO_DADOS = "palpites_permanentes_2026.csv"
 ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 
 try:
-    st.image("WhatsApp Image 2026-02-24 at 16.12.18.png", use_container_width=True)
-except:
+    st.image("logo_bolao.png", use_container_width=True)
+except Exception as e:
+    st.sidebar.error(f"Erro ao carregar logo: {e}")
     st.title("🏁 Palpites F1 2026")
 
 participantes = [
