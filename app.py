@@ -1,5 +1,5 @@
-import streamlit as st
 import plotly.express as px
+import streamlit as st
 import pandas as pd
 from datetime import datetime
 import pytz
