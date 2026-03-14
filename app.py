@@ -494,38 +494,39 @@ elif menu == "Classificações":
             with c1:
                 st.subheader("🎯 Duelo Interno (% Equipe)")
                 
-                # 1. Agrupar e calcular totais
+                # 1. Agrupar pontos por Equipe e Usuário
                 df_duelo = df_master.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
-                totais_eq = df_duelo.groupby('Equipe')['Pontos'].transform('sum')
                 
-                # 2. Calcular a porcentagem real
-                df_duelo['Pct'] = (df_duelo['Pontos'] / totais_eq * 100).round(1)
-                # Criar o texto que vai aparecer na barra (ex: "45.5% (50 pts)")
-                df_duelo['Label'] = df_duelo['Pct'].astype(str) + "%"
+                # 2. Calcular totais por equipe de forma segura
+                totais = df_duelo.groupby('Equipe')['Pontos'].transform('sum')
                 
-                # 3. Gerar o gráfico usando o modo de porcentagem
+                # 3. Calcular porcentagem evitando divisão por zero
+                df_duelo['Pct'] = (df_duelo['Pontos'] / totais * 100).fillna(0).round(1)
+                
+                # 4. Criar label amigável
+                df_duelo['Label'] = df_duelo['Usuario'] + ": " + df_duelo['Pct'].astype(str) + "%"
+
+                # 5. Gráfico usando cores fixas da F1 para não bugar
                 fig1 = px.bar(df_duelo, 
-                             x="Equipe", 
-                             y="Pct", 
+                             y="Equipe", 
+                             x="Pct", 
                              color="Usuario",
-                             text="Label", # Aqui forçamos a exibição do texto
-                             barmode="stack", # Empilhado para fechar sempre 100%
+                             orientation='h',
+                             text="Label",
+                             barmode="stack",
                              color_discrete_sequence=px.colors.qualitative.T10)
-                
-                # 4. Forçar os números a aparecerem dentro das barras e ficarem visíveis
-                fig1.update_traces(
-                    textposition='inside',
-                    insidetextanchor='middle',
-                    textfont=dict(size=14, color="white")
-                )
+
+                # 6. Forçar exibição do texto
+                fig1.update_traces(textposition='inside', insidetextanchor='middle')
                 
                 fig1.update_layout(
-                    showlegend=False, 
-                    height=350, 
-                    margin=dict(l=10,r=10,t=30,b=10),
-                    yaxis=dict(title="Contribuição (%)", range=[0, 100]),
-                    xaxis=dict(title=None)
+                    showlegend=False,
+                    height=350,
+                    margin=dict(l=0, r=10, t=30, b=0),
+                    xaxis=dict(range=[0, 100], title="% de Contribuição"),
+                    yaxis=dict(title=None)
                 )
+                
                 st.plotly_chart(fig1, use_container_width=True)
 
             with c2:
