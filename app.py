@@ -492,38 +492,40 @@ elif menu == "Classificações":
             c3, c4 = st.columns(2)
 
             with c1:
-                st.subheader("🎯 Duelo Interno (Pontos)")
+                st.subheader("🎯 Duelo Interno (% Equipe)")
                 
-                # 1. Agrupar dados
+                # 1. Agrupar e calcular totais
                 df_duelo = df_master.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
-                equipes = sorted(df_duelo['Equipe'].unique())
+                totais_eq = df_duelo.groupby('Equipe')['Pontos'].transform('sum')
                 
-                fig1 = go.Figure()
-
-                # 2. Criar uma série de barras para cada usuário de forma dinâmica
-                usuarios_unicos = df_duelo['Usuario'].unique()
-                for i, user in enumerate(usuarios_unicos):
-                    dff = df_duelo[df_duelo['Usuario'] == user]
-                    # Só adiciona ao gráfico se o usuário tiver pontos em alguma equipe
-                    fig1.add_trace(go.Bar(
-                        name=user,
-                        x=dff['Equipe'],
-                        y=dff['Pontos'],
-                        text=dff['Pontos'],
-                        textposition='auto',
-                    ))
-
-                # 3. Configurações de Layout
-                fig1.update_layout(
-                    barmode='group', # Barras dos parceiros lado a lado
-                    height=350,
-                    margin=dict(l=10, r=10, t=30, b=10),
-                    showlegend=True, # Legenda ajuda a identificar quem é quem no duelo
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                    xaxis=dict(title=None),
-                    yaxis=dict(title="Pontos Totais")
+                # 2. Calcular a porcentagem real
+                df_duelo['Pct'] = (df_duelo['Pontos'] / totais_eq * 100).round(1)
+                # Criar o texto que vai aparecer na barra (ex: "45.5% (50 pts)")
+                df_duelo['Label'] = df_duelo['Pct'].astype(str) + "%"
+                
+                # 3. Gerar o gráfico usando o modo de porcentagem
+                fig1 = px.bar(df_duelo, 
+                             x="Equipe", 
+                             y="Pct", 
+                             color="Usuario",
+                             text="Label", # Aqui forçamos a exibição do texto
+                             barmode="stack", # Empilhado para fechar sempre 100%
+                             color_discrete_sequence=px.colors.qualitative.T10)
+                
+                # 4. Forçar os números a aparecerem dentro das barras e ficarem visíveis
+                fig1.update_traces(
+                    textposition='inside',
+                    insidetextanchor='middle',
+                    textfont=dict(size=14, color="white")
                 )
                 
+                fig1.update_layout(
+                    showlegend=False, 
+                    height=350, 
+                    margin=dict(l=10,r=10,t=30,b=10),
+                    yaxis=dict(title="Contribuição (%)", range=[0, 100]),
+                    xaxis=dict(title=None)
+                )
                 st.plotly_chart(fig1, use_container_width=True)
 
             with c2:
