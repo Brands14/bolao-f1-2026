@@ -443,9 +443,9 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ABA: CLASSIFICAÇÕES E DASHBOARD AVANÇADO ---
+# --- ABA: CLASSIFICAÇÕES E DASHBOARD ORGANIZADO ---
 elif menu == "Classificações":
-    st.header("📊 Dashboard de Performance e Probabilidades")
+    st.header("📊 Telemetria do Campeonato")
     
     import plotly.express as px 
     import plotly.graph_objects as go
@@ -454,7 +454,6 @@ elif menu == "Classificações":
     df_g, _ = ler_dados(ARQUIVO_GABARITOS)
     
     if not df_p.empty and not df_g.empty:
-        # Cálculo da base de dados
         pontos_lista = []
         for _, p in df_p.iterrows():
             g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
@@ -469,92 +468,80 @@ elif menu == "Classificações":
         
         if pontos_lista:
             df_base = pd.DataFrame(pontos_lista)
-            df_soma = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
-            
-            # --- 1. TABELAS DE CLASSIFICAÇÃO (COMO VOCÊ PEDIU) ---
-            tab_geral, tab_gp, tab_equipe = st.tabs(["🏆 Classificação Geral", "📍 Rendimento na Rodada", "🏎️ Pontos por Equipe"])
+            # Soma total por usuário
+            df_soma = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().reset_index()
+            # Ordenar do maior para o menor (Líder no topo)
+            df_soma = df_soma.sort_values(by='Pontos', ascending=True) 
+
+            # --- TABELAS SUPERIORES ---
+            tab_geral, tab_gp, tab_equipe = st.tabs(["🏆 Ranking Geral", "📍 Por Grande Prêmio", "🏎️ Mundial de Construtores"])
             
             with tab_geral:
-                df_ranking = df_soma.copy()
-                df_ranking.index = df_ranking.index + 1
-                st.table(df_ranking)
+                # Exibe do maior para o menor
+                st.table(df_soma.sort_values(by='Pontos', ascending=False).assign(Pos=range(1, len(df_soma)+1)).set_index('Pos'))
 
             with tab_gp:
-                gp_sel = st.selectbox("Escolha o GP para ver o rendimento:", lista_gps)
+                gp_sel = st.selectbox("Selecione o GP:", lista_gps)
                 df_rodada = df_base[df_base['GP'] == gp_sel].groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
-                if not df_rodada.empty:
-                    df_rodada.index = df_rodada.index + 1
-                    st.table(df_rodada)
-                else:
-                    st.info("Aguardando resultados deste GP.")
+                st.table(df_rodada) if not df_rodada.empty else st.info("Sem dados.")
 
             with tab_equipe:
                 df_eq_tab = df_base.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
                 st.table(df_eq_tab)
 
             st.divider()
-            st.subheader("🛠️ Dashboards de Telemetria")
 
-            # --- 2. GRID DE 4 GRÁFICOS ---
-            col1, col2 = st.columns(2)
-            col3, col4 = st.columns(2)
+            # --- DASHBOARD 4 QUADRANTES ---
+            c1, c2 = st.columns(2)
+            c3, c4 = st.columns(2)
 
-            with col1:
-                # GRÁFICO 1: Pizza - Melhor palpiteiro por Equipe
-                st.write("**🎯 Líderes por Equipe**")
-                idx_max = df_base.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
-                idx_max = idx_max.loc[idx_max.groupby('Equipe')['Pontos'].idxmax()]
-                fig1 = px.pie(idx_max, values='Pontos', names='Usuario', hole=0.4,
-                             color_discrete_sequence=px.colors.qualitative.Pastel,
-                             hover_data=['Equipe'])
-                fig1.update_layout(margin=dict(l=10, r=10, t=10, b=10), showlegend=False)
+            with c1:
+                st.write("**🎯 Domínio por Equipe**")
+                # Pizza com os maiores pontuadores de cada equipe
+                fig1 = px.sunburst(df_base, path=['Equipe', 'Usuario'], values='Pontos',
+                                  color_discrete_sequence=px.colors.qualitative.Dark2)
+                fig1.update_layout(margin=dict(l=0, r=0, b=0, t=0))
                 st.plotly_chart(fig1, use_container_width=True)
 
-            with col2:
-                # GRÁFICO 2: Equalizador - Pontuação Geral
-                st.write("**🎚️ Equalizador de Pontos Totais**")
-                fig2 = go.Figure(go.Bar(
-                    x=df_soma['Pontos'], y=df_soma['Usuario'], orientation='h',
-                    marker=dict(color=df_soma['Pontos'], colorscale='Reds', line=dict(color='white', width=2))
-                ))
-                fig2.update_layout(xaxis_title="Pontos", yaxis={'categoryorder':'total ascending'}, 
-                                  height=300, margin=dict(l=10, r=10, t=10, b=10))
+            with c2:
+                st.write("**🎚️ Nível de Performance (Total)**")
+                # Barra Horizontal com o Líder no TOPO
+                fig2 = px.bar(df_soma, x='Pontos', y='Usuario', orientation='h',
+                             text='Pontos', color='Pontos', color_continuous_scale='Reds')
+                fig2.update_traces(textposition='outside')
+                fig2.update_layout(showlegend=False, yaxis={'categoryorder':'total ascending'})
                 st.plotly_chart(fig2, use_container_width=True)
 
-            with col3:
-                # GRÁFICO 3: Evolução Estilo Equalizador (GPs acumulados)
-                st.write("**📈 Evolução do Grid**")
+            with c3:
+                st.write("**📈 Evolução Constante**")
+                # Evolução por GP em barras empilhadas para ver quem ganha mais espaço
                 df_ev = df_base.copy()
                 df_ev['GP'] = pd.Categorical(df_ev['GP'], categories=lista_gps, ordered=True)
-                df_ev = df_ev.groupby(['GP', 'Usuario'])['Pontos'].sum().groupby(level=1).cumsum().reset_index()
-                
-                fig3 = px.bar(df_ev, x='GP', y='Pontos', color='Usuario', barmode='group')
-                fig3.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10), showlegend=False)
+                fig3 = px.bar(df_ev, x='Usuario', y='Pontos', color='GP', barmode='stack',
+                             color_discrete_sequence=px.colors.sequential.Viridis)
+                fig3.update_layout(xaxis={'categoryorder':'total descending'}, showlegend=False)
                 st.plotly_chart(fig3, use_container_width=True)
 
-            with col4:
-                # GRÁFICO 4: Probabilidade de Campeão (Estilo Imagem F1)
-                st.write("**🔮 Probabilidade de Título (%)**")
-                total_pontos_geral = df_soma['Pontos'].sum()
-                if total_pontos_geral > 0:
-                    df_soma['Prob'] = (df_soma['Pontos'] / total_pontos_geral * 100).round(1)
-                else:
-                    df_soma['Prob'] = 0
-                
+            with c4:
+                st.write("**🔮 AWS Insights: Chance de Título**")
+                total = df_soma['Pontos'].sum()
+                df_prob = df_soma.copy()
+                df_prob['Prob'] = ((df_prob['Pontos'] / total) * 100).round(1) if total > 0 else 0
+                df_prob = df_prob.sort_values(by='Prob', ascending=True)
+
                 fig4 = go.Figure()
                 fig4.add_trace(go.Bar(
-                    x=df_soma['Prob'], y=df_soma['Usuario'], orientation='h',
-                    text=df_soma['Prob'].astype(str) + '%', textposition='outside',
-                    marker=dict(color='gold')
+                    x=df_prob['Prob'], y=df_prob['Usuario'], orientation='h',
+                    marker=dict(color='rgba(255, 215, 0, 0.6)', line=dict(color='gold', width=2)),
+                    text=df_prob['Prob'].astype(str) + '%', textposition='outside'
                 ))
-                fig4.update_layout(xaxis=dict(range=[0, 100]), height=300, 
-                                  margin=dict(l=10, r=10, t=10, b=10))
+                fig4.update_layout(xaxis=dict(range=[0, max(df_prob['Prob']*1.3 if not df_prob.empty else [100])]))
                 st.plotly_chart(fig4, use_container_width=True)
-
+                
         else:
-            st.warning("Aguardando lançamentos para gerar o Dashboard.")
+            st.warning("Aguardando dados para processar a telemetria.")
     else:
-        st.info("O Dashboard aparecerá aqui assim que houver resultados oficiais!")
+        st.info("Aguardando o primeiro gabarito oficial!")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
