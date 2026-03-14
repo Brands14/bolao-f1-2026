@@ -33,8 +33,7 @@ ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 
 try:
     st.image("logo_bolao.png", use_container_width=True)
-except Exception as e:
-    st.sidebar.error(f"Erro ao carregar logo: {e}")
+except:
     st.title("🏁 Palpites F1 2026")
 
 participantes = [
