@@ -9,7 +9,6 @@ import json
 import base64
 import io
 import smtplib
-import plotly.express as px
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
