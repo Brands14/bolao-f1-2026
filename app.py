@@ -506,7 +506,6 @@ elif menu == "Classificações":
                 df_dom = df_dom.merge(df_total_eq, on='Equipe')
                 df_dom['% Equipe'] = (df_dom['Pontos'] / df_dom['TotalEquipe'] * 100).round(1)
                 
-                # Gráfico de barras horizontais para comparar parceiros de equipe
                 fig1 = px.bar(df_dom, x='% Equipe', y='Usuario', color='Equipe', 
                              orientation='h', text='% Equipe',
                              color_discrete_sequence=px.colors.qualitative.T10)
@@ -516,28 +515,28 @@ elif menu == "Classificações":
 
             with c2:
                 st.subheader("🎚️ Performance Total")
-                # Barra Horizontal com escala corrigida para não esmagar os pontos
+                # CORRIGIDO: de 'Points' para 'Pontos'
+                max_pts = df_soma_grafico['Pontos'].max() if not df_soma_grafico.empty else 100
                 fig2 = px.bar(df_soma_grafico, x='Pontos', y='Usuario', orientation='h',
                              text='Pontos', color='Pontos', 
                              color_continuous_scale='Reds')
                 fig2.update_traces(textposition='outside')
-                fig2.update_layout(showlegend=False, xaxis=dict(range=[0, df_soma_grafico['Points'].max() * 1.3 if not df_soma_grafico.empty else 100]), height=300)
+                fig2.update_layout(showlegend=False, xaxis=dict(range=[0, max_pts * 1.3]), height=300)
                 st.plotly_chart(fig2, use_container_width=True)
 
             with c3:
                 st.subheader("📈 Evolução por GP")
-                # Gráfico de Linhas - O melhor para ver "ultrapassagens"
+                # Gráfico de Linhas - Evolução Acumulada
                 df_ev = df_base.copy()
                 df_ev['GP'] = pd.Categorical(df_ev['GP'], categories=lista_gps, ordered=True)
-                df_ev_total = df_ev.groupby(['Usuario', 'GP'])['Pontos'].sum().groupby(level=0).cumsum().reset_index()
+                df_ev_total = df_ev.groupby(['Usuario', 'GP'], observed=True)['Pontos'].sum().groupby(level=0).cumsum().reset_index()
                 
                 fig3 = px.line(df_ev_total, x='GP', y='Pontos', color='Usuario', markers=True)
-                fig3.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0))
+                fig3.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
                 st.plotly_chart(fig3, use_container_width=True)
 
             with c4:
                 st.subheader("🔮 AWS: Chance de Título")
-                # Probabilidade baseada no total de pontos do bolão
                 total_bolao = df_soma_grafico['Pontos'].sum()
                 df_prob = df_soma_grafico.copy()
                 df_prob['Prob'] = ((df_prob['Pontos'] / total_bolao) * 100).round(1) if total_bolao > 0 else 0
