@@ -31,23 +31,18 @@ except:
 ARQUIVO_DADOS = "palpites_permanentes_2026.csv" 
 ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 
-# --- LOGO (VERSÃO REFORMULADA) ---
-# Se você renomeou no GitHub para logo.png, mude aqui para "logo.png"
-NOME_ARQUIVO_LOGO = "WhatsApp Image 2026-02-24 at 16.12.18.png" 
-
-# --- LOGO (VERSÃO COM LINK DIRETO DO GITHUB) ---
-# Usamos o link "raw" para que o Streamlit não precise achar o arquivo na pasta
+# --- LOGO (VERSÃO COMPATÍVEL COM VERSÃO 1.31.0) ---
 nome_arquivo_logo = "WhatsApp Image 2026-02-24 at 16.12.18.png"
-nome_para_url = nome_arquivo_logo.replace(" ", "%20") # Corrige os espaços para o link
+nome_para_url = nome_arquivo_logo.replace(" ", "%20")
 
 url_final_logo = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/{nome_para_url}"
 
 try:
-    st.image(url_final_logo, use_container_width=True)
+    # Mudamos de 'use_container_width' para 'use_column_width'
+    st.image(url_final_logo, use_column_width=True)
 except Exception as e:
-    # Caso o link direto também falhe, ele mostra o título em texto
     st.title("🏁 Palpites F1 2026")
-    st.error(f"Erro ao carregar a logo: {e}")
+    st.write(f"Aguardando carregamento da imagem...")
 
 participantes = [
     "Alaerte Fleury", "César Gaudie", "Delvânia Belo", "Emilio Jacinto", 
