@@ -549,7 +549,6 @@ elif menu == "Classificações":
                     text=df_prob['Prob'].astype(str) + '%', textposition='outside'
                 ))
                 fig4.update_layout(xaxis=dict(range=[0, 115]), height=300)
-                st.plotly_chart(fig4, use_container_width=True)
 
         else:
             st.warning("Aguardando dados para processar a telemetria.")
