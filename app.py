@@ -461,33 +461,36 @@ elif menu == "Classificações":
                 pts = calcular_pontos_sessao(p, g.iloc[0])
                 pontos_lista.append({
                     "GP": p['GP'], 
-                    "Usuario": p.get('Usuario', 'N/A'), 
-                    "Equipe": p.get('Equipe', 'N/A'),
-                    "Pontos": pts
+                    "Usuario": str(p.get('Usuario', 'N/A')), 
+                    "Equipe": str(p.get('Equipe', 'N/A')),
+                    "Pontos": int(pts)
                 })
         
         if pontos_lista:
             df_base = pd.DataFrame(pontos_lista)
-            # Soma total por usuário
-            df_soma = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().reset_index()
-            # Ordenar do maior para o menor (Líder no topo)
-            df_soma = df_soma.sort_values(by='Pontos', ascending=True) 
-
+            # Soma total por usuário ordenado para os gráficos
+            df_soma_grafico = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=True)
+            
             # --- TABELAS SUPERIORES ---
             tab_geral, tab_gp, tab_equipe = st.tabs(["🏆 Ranking Geral", "📍 Por Grande Prêmio", "🏎️ Mundial de Construtores"])
             
             with tab_geral:
-                # Exibe do maior para o menor
-                st.table(df_soma.sort_values(by='Pontos', ascending=False).assign(Pos=range(1, len(df_soma)+1)).set_index('Pos'))
+                df_ranking = df_base.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
+                df_ranking.index = range(1, len(df_ranking) + 1)
+                st.dataframe(df_ranking, use_container_width=True)
 
             with tab_gp:
-                gp_sel = st.selectbox("Selecione o GP:", lista_gps)
+                gp_sel = st.selectbox("Selecione o GP:", lista_gps, key="sel_gp_dash")
                 df_rodada = df_base[df_base['GP'] == gp_sel].groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
-                st.table(df_rodada) if not df_rodada.empty else st.info("Sem dados.")
+                if not df_rodada.empty:
+                    df_rodada.index = range(1, len(df_rodada) + 1)
+                    st.dataframe(df_rodada, use_container_width=True)
+                else:
+                    st.info("Sem dados para este GP.")
 
             with tab_equipe:
                 df_eq_tab = df_base.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                st.table(df_eq_tab)
+                st.dataframe(df_eq_tab, use_container_width=True, hide_index=True)
 
             st.divider()
 
@@ -496,48 +499,46 @@ elif menu == "Classificações":
             c3, c4 = st.columns(2)
 
             with c1:
-                st.write("**🎯 Domínio por Equipe**")
-                # Pizza com os maiores pontuadores de cada equipe
-                fig1 = px.sunburst(df_base, path=['Equipe', 'Usuario'], values='Pontos',
-                                  color_discrete_sequence=px.colors.qualitative.Dark2)
-                fig1.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+                st.subheader("🎯 Domínio")
+                # Gráfico de Pizza/Donut
+                fig1 = px.pie(df_soma_grafico, values='Pontos', names='Usuario', hole=0.4,
+                             color_discrete_sequence=px.colors.qualitative.Dark2)
+                fig1.update_layout(showlegend=False, margin=dict(l=20, r=20, t=20, b=20))
                 st.plotly_chart(fig1, use_container_width=True)
 
             with c2:
-                st.write("**🎚️ Nível de Performance (Total)**")
-                # Barra Horizontal com o Líder no TOPO
-                fig2 = px.bar(df_soma, x='Pontos', y='Usuario', orientation='h',
+                st.subheader("🎚️ Performance")
+                # Barra Horizontal (Líder no Topo)
+                fig2 = px.bar(df_soma_grafico, x='Pontos', y='Usuario', orientation='h',
                              text='Pontos', color='Pontos', color_continuous_scale='Reds')
                 fig2.update_traces(textposition='outside')
                 fig2.update_layout(showlegend=False, yaxis={'categoryorder':'total ascending'})
                 st.plotly_chart(fig2, use_container_width=True)
 
             with c3:
-                st.write("**📈 Evolução Constante**")
-                # Evolução por GP em barras empilhadas para ver quem ganha mais espaço
+                st.subheader("📈 Evolução")
+                # Barras empilhadas por GP
                 df_ev = df_base.copy()
                 df_ev['GP'] = pd.Categorical(df_ev['GP'], categories=lista_gps, ordered=True)
-                fig3 = px.bar(df_ev, x='Usuario', y='Pontos', color='GP', barmode='stack',
-                             color_discrete_sequence=px.colors.sequential.Viridis)
+                fig3 = px.bar(df_ev, x='Usuario', y='Pontos', color='GP', barmode='stack')
                 fig3.update_layout(xaxis={'categoryorder':'total descending'}, showlegend=False)
                 st.plotly_chart(fig3, use_container_width=True)
 
             with c4:
-                st.write("**🔮 AWS Insights: Chance de Título**")
-                total = df_soma['Pontos'].sum()
-                df_prob = df_soma.copy()
+                st.subheader("🔮 AWS: Chance de Título")
+                total = df_soma_grafico['Pontos'].sum()
+                df_prob = df_soma_grafico.copy()
                 df_prob['Prob'] = ((df_prob['Pontos'] / total) * 100).round(1) if total > 0 else 0
-                df_prob = df_prob.sort_values(by='Prob', ascending=True)
-
-                fig4 = go.Figure()
-                fig4.add_trace(go.Bar(
+                
+                fig4 = go.Figure(go.Bar(
                     x=df_prob['Prob'], y=df_prob['Usuario'], orientation='h',
-                    marker=dict(color='rgba(255, 215, 0, 0.6)', line=dict(color='gold', width=2)),
+                    marker=dict(color='gold', line=dict(color='darkgoldenrod', width=2)),
                     text=df_prob['Prob'].astype(str) + '%', textposition='outside'
                 ))
-                fig4.update_layout(xaxis=dict(range=[0, max(df_prob['Prob']*1.3 if not df_prob.empty else [100])]))
+                # Ajuste de margem para o texto não cortar
+                fig4.update_layout(xaxis=dict(range=[0, 110]))
                 st.plotly_chart(fig4, use_container_width=True)
-                
+
         else:
             st.warning("Aguardando dados para processar a telemetria.")
     else:
