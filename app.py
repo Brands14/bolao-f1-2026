@@ -490,7 +490,7 @@ elif menu == "Classificações":
             c1, c2 = st.columns(2)
             c3, c4 = st.columns(2)
 
-          with c1:
+             with c1:
                 st.subheader("🎯 Duelo Interno (Pontos)")
                 
                 # 1. Agrupar dados
