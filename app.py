@@ -395,7 +395,6 @@ if menu == "Enviar Palpite":
                         "MaisUltrapassagens": m_ultrapassagens
                     }
                     
-                    if email_confirmacao == email_cadastrado:
                     if guardar_dados(dados_palpite, ARQUIVO_DADOS):
                         enviar_recibo_email(dados_palpite, email_confirmacao)
                         
