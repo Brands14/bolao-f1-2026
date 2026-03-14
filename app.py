@@ -550,10 +550,7 @@ elif menu == "Classificações":
                 fig4.update_layout(xaxis=dict(range=[0, 115]), height=300)
                 st.plotly_chart(fig4, use_container_width=True)
 
-        else:
-            st.warning("Aguardando dados para processar a telemetria.")
-    else:
-        st.info("Aguardando o primeiro gabarito oficial!")
+    
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
     senha = st.sidebar.text_input("Senha de Diretor de Prova:", type="password")
