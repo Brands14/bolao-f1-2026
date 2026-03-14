@@ -492,19 +492,36 @@ elif menu == "Classificações":
 
             with c1:
                 st.subheader("🎯 Duelo Interno (% Equipe)")
-                df_duelo = df_master.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
-                # Soma total da equipe para calcular a %
-                df_total_eq = df_duelo.groupby('Equipe')['Pontos'].transform('sum')
-                df_duelo['Porcentagem'] = (df_duelo['Pontos'] / df_total_eq * 100).round(1)
                 
-                # Inversão: maior pontuador primeiro na barra empilhada
+                # 1. Agrupar pontos por Equipe e Usuário
+                df_duelo = df_master.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
+                
+                # 2. Calcular o total de cada equipe de forma manual e segura
+                total_por_equipe = df_master.groupby('Equipe')['Pontos'].sum().to_dict()
+                
+                # 3. Criar a coluna de porcentagem usando o dicionário
+                def calc_pct(row):
+                    total = total_por_equipe.get(row['Equipe'], 0)
+                    return round((row['Pontos'] / total * 100), 1) if total > 0 else 0
+                
+                df_duelo['Porcentagem'] = df_duelo.apply(calc_pct, axis=1)
+                
+                # 4. Ordenar: Maior pontuador da equipe fica em cima/primeiro
                 df_duelo = df_duelo.sort_values(['Equipe', 'Pontos'], ascending=[True, False])
                 
+                # 5. Gerar o gráfico
                 fig1 = px.bar(df_duelo, x="Porcentagem", y="Equipe", color="Usuario", 
                              orientation='h', text="Porcentagem", barmode="stack",
                              color_discrete_sequence=px.colors.qualitative.T10)
+                
                 fig1.update_traces(texttemplate='%{text}%', textposition='inside')
-                fig1.update_layout(showlegend=False, height=350, margin=dict(l=0,r=10,t=30,b=0), xaxis=dict(range=[0, 100]))
+                fig1.update_layout(
+                    showlegend=False, 
+                    height=350, 
+                    margin=dict(l=0,r=10,t=30,b=0),
+                    xaxis=dict(range=[0, 100], title="Contribuição do Piloto (%)"),
+                    yaxis=dict(title=None)
+                )
                 st.plotly_chart(fig1, use_container_width=True)
 
             with c2:
