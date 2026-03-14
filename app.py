@@ -494,41 +494,50 @@ elif menu == "Classificações":
 
             st.divider()
 
-            # --- DASHBOARD FINAL: LIMPO E PROFISSIONAL ---
+           # --- DASHBOARD FINAL: CORREÇÃO DE DUELO E EVOLUÇÃO ---
             st.divider()
             c1, c2 = st.columns(2)
             c3, c4 = st.columns(2)
 
             with c1:
-                st.subheader("🎯 Duelo Interno (% Equipe)")
-                # Agrupa por equipe e usuário para ver a fatia de cada um
-                df_dom = df_base.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
-                fig1 = px.bar(df_dom, x='Pontos', y='Equipe', color='Usuario', 
-                             orientation='h', text='Usuario',
+                st.subheader("🎯 Duelo Interno (Pontos)")
+                # Agrupamento explícito para garantir a separação por Equipe e Usuário
+                df_duelo = df_base.groupby(['Equipe', 'Usuario'], as_index=False)['Pontos'].sum()
+                
+                # Usamos barmode='group' para as barras ficarem lado a lado por equipe
+                fig1 = px.bar(df_duelo, x='Equipe', y='Pontos', color='Usuario',
+                             barmode='group', text='Pontos',
                              color_discrete_sequence=px.colors.qualitative.Bold)
-                fig1.update_layout(showlegend=False, height=300, margin=dict(l=0, r=0, t=30, b=0))
-                fig1.update_traces(textposition='inside')
+                fig1.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
+                fig1.update_traces(textposition='outside')
                 st.plotly_chart(fig1, use_container_width=True)
 
             with c2:
-                st.subheader("🎚️ Ranking de Performance")
-                # Gráfico de barras limpo com nomes nas barras
+                st.subheader("🎚️ Performance Total")
                 fig2 = px.bar(df_soma_grafico, x='Pontos', y='Usuario', orientation='h',
-                             text='Usuario', color='Pontos', color_continuous_scale='Reds')
-                fig2.update_traces(textposition='inside', textfont_size=14)
-                fig2.update_layout(showlegend=False, coloraxis_showscale=False, height=300,
-                                  yaxis={'visible': False}) # Remove nomes repetidos no eixo Y
+                             text='Pontos', color='Usuario', color_discrete_sequence=['#FF1801'])
+                fig2.update_layout(showlegend=False, height=300, margin=dict(l=0, r=0, t=30, b=0))
+                fig2.update_traces(textposition='inside')
                 st.plotly_chart(fig2, use_container_width=True)
 
             with c3:
-                st.subheader("📈 Linha do Tempo (Evolução)")
-                # Garante que a evolução seja mostrada por GP na ordem correta
-                df_ev = df_base.sort_values(by='GP')
-                df_ev_total = df_ev.groupby(['Usuario', 'GP'], observed=True)['Pontos'].sum().groupby(level=0).cumsum().reset_index()
+                st.subheader("📈 Evolução Acumulada")
+                # 1. Criar uma cópia e garantir que Usuario seja string
+                df_ev = df_base.copy()
+                df_ev['Usuario'] = df_ev['Usuario'].astype(str)
                 
-                fig3 = px.line(df_ev_total, x='GP', y='Pontos', color='Usuario', markers=True,
-                              line_shape='linear')
-                fig3.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=True)
+                # 2. Criar uma coluna de ordem para os GPs para garantir que a linha siga a sequência
+                ordem_gps = {gp: i for i, gp in enumerate(lista_gps)}
+                df_ev['Ordem'] = df_ev['GP'].map(ordem_gps)
+                df_ev = df_ev.sort_values(by=['Usuario', 'Ordem'])
+
+                # 3. Calcular a soma acumulada de verdade
+                df_ev['Pontos Acumulados'] = df_ev.groupby('Usuario')['Pontos'].cumsum()
+
+                # 4. Gerar o gráfico de linha conectando os GPs
+                fig3 = px.line(df_ev, x='GP', y='Pontos Acumulados', color='Usuario', 
+                              markers=True, category_orders={"GP": lista_gps})
+                fig3.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
                 st.plotly_chart(fig3, use_container_width=True)
 
             with c4:
@@ -537,7 +546,6 @@ elif menu == "Classificações":
                 df_prob = df_soma_grafico.copy()
                 df_prob['Prob'] = ((df_prob['Pontos'] / total_bolao) * 100).round(1) if total_bolao > 0 else 0
                 
-                # Estilo "Insight" da F1 com bordas douradas
                 fig4 = go.Figure(go.Bar(
                     x=df_prob['Prob'], y=df_prob['Usuario'], orientation='h',
                     marker=dict(color='rgba(255, 215, 0, 0.6)', line=dict(color='gold', width=2)),
