@@ -15,11 +15,11 @@ from email.mime.multipart import MIMEMultipart
 # 1. Configurações Iniciais
 st.set_page_config(page_title="Palpites F1 2026", layout="wide")
 
-# 🚨 CONFIGURAÇÕES DO REPOSITÓRIO
+# 🚨 MUDE AQUI: Coloque exatamente o seu nome de usuário do GitHub dentro das aspas!
 GITHUB_USER = "Brands14" 
 GITHUB_REPO = "bolao-f1-2026"
 EMAIL_ADMIN = "palpitesf12026@gmail.com"
-# Caminho para a sua pasta de fotos no GitHub
+# URL Base para as fotos no seu repositório
 URL_BASE_FOTOS = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/"
 
 # Puxa as chaves mestras do painel do Streamlit
@@ -33,18 +33,18 @@ except:
 ARQUIVO_DADOS = "palpites_permanentes_2026.csv" 
 ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 
-try:
-    st.image("WhatsApp Image 2026-02-24 at 16.12.18.png", use_container_width=True)
-except:
-    st.title("🏁 Palpites F1 2026")
-
-# --- FUNÇÃO ADICIONADA: EXIBIR FOTO DO GITHUB ---
+# Função auxiliar para exibir a foto do piloto (Somente na aba Enviar Palpite)
 def exibir_foto_piloto(nome):
     if nome and nome != "" and nome != "Nenhum / Outro":
         # Formata o nome para URL (substitui espaços por %20)
         nome_arquivo = nome.replace(" ", "%20") + ".png"
         url_foto = URL_BASE_FOTOS + nome_arquivo
         st.image(url_foto, width=80)
+
+try:
+    st.image("WhatsApp Image 2026-02-24 at 16.12.18.png", use_container_width=True)
+except:
+    st.title("🏁 Palpites F1 2026")
 
 participantes = [
     "Alaerte Fleury", "César Gaudie", "Delvânia Belo", "Emilio Jacinto", 
@@ -327,40 +327,40 @@ if menu == "Enviar Palpite":
             if "Pole" in tipo_sessao:
                 st.info("📌 Palpite apenas para a Pole Position desta sessão.")
                 pole = st.selectbox("Pole Position:", pilotos)
-                exibir_foto_piloto(pole) # Adicionado
+                exibir_foto_piloto(pole)
                 
             elif tipo_sessao == "Corrida Principal":
                 st.info("📌 Palpite para a Corrida de Domingo.")
                 col1, col2 = st.columns(2)
                 with col1:
-                    p1 = st.selectbox("1º Colocado:", pilotos); exibir_foto_piloto(p1) # Adicionado
-                    p2 = st.selectbox("2º Colocado:", pilotos); exibir_foto_piloto(p2) # Adicionado
-                    p3 = st.selectbox("3º Colocado:", pilotos); exibir_foto_piloto(p3) # Adicionado
-                    p4 = st.selectbox("4º Colocado:", pilotos); exibir_foto_piloto(p4) # Adicionado
-                    p5 = st.selectbox("5º Colocado:", pilotos); exibir_foto_piloto(p5) # Adicionado
+                    p1 = st.selectbox("1º Colocado:", pilotos); exibir_foto_piloto(p1)
+                    p2 = st.selectbox("2º Colocado:", pilotos); exibir_foto_piloto(p2)
+                    p3 = st.selectbox("3º Colocado:", pilotos); exibir_foto_piloto(p3)
+                    p4 = st.selectbox("4º Colocado:", pilotos); exibir_foto_piloto(p4)
+                    p5 = st.selectbox("5º Colocado:", pilotos); exibir_foto_piloto(p5)
                 with col2:
-                    p6 = st.selectbox("6º Colocado:", pilotos); exibir_foto_piloto(p6) # Adicionado
-                    p7 = st.selectbox("7º Colocado:", pilotos); exibir_foto_piloto(p7) # Adicionado
-                    p8 = st.selectbox("8º Colocado:", pilotos); exibir_foto_piloto(p8) # Adicionado
-                    p9 = st.selectbox("9º Colocado:", pilotos); exibir_foto_piloto(p9) # Adicionado
-                    p10 = st.selectbox("10º Colocado:", pilotos); exibir_foto_piloto(p10) # Adicionado
-                    volta_rapida = st.selectbox("Melhor Volta:", pilotos); exibir_foto_piloto(volta_rapida) # Adicionado
-                    primeiro_abandono = st.selectbox("1º Abandono:", pilotos); exibir_foto_piloto(primeiro_abandono) # Adicionado
-                    mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos); exibir_foto_piloto(mais_ultrapassagens) # Adicionado
+                    p6 = st.selectbox("6º Colocado:", pilotos); exibir_foto_piloto(p6)
+                    p7 = st.selectbox("7º Colocado:", pilotos); exibir_foto_piloto(p7)
+                    p8 = st.selectbox("8º Colocado:", pilotos); exibir_foto_piloto(p8)
+                    p9 = st.selectbox("9º Colocado:", pilotos); exibir_foto_piloto(p9)
+                    p10 = st.selectbox("10º Colocado:", pilotos); exibir_foto_piloto(p10)
+                    volta_rapida = st.selectbox("Melhor Volta:", pilotos); exibir_foto_piloto(volta_rapida)
+                    primeiro_abandono = st.selectbox("1º Abandono:", pilotos); exibir_foto_piloto(primeiro_abandono)
+                    mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos); exibir_foto_piloto(mais_ultrapassagens)
                     
             elif tipo_sessao == "Corrida Sprint":
                 st.info("📌 Palpite para a Corrida Sprint (Top 8).")
                 col1, col2 = st.columns(2)
                 with col1:
-                    p1 = st.selectbox("1º Colocado:", pilotos); exibir_foto_piloto(p1) # Adicionado
-                    p2 = st.selectbox("2º Colocado:", pilotos); exibir_foto_piloto(p2) # Adicionado
-                    p3 = st.selectbox("3º Colocado:", pilotos); exibir_foto_piloto(p3) # Adicionado
-                    p4 = st.selectbox("4º Colocado:", pilotos); exibir_foto_piloto(p4) # Adicionado
+                    p1 = st.selectbox("1º Colocado:", pilotos); exibir_foto_piloto(p1)
+                    p2 = st.selectbox("2º Colocado:", pilotos); exibir_foto_piloto(p2)
+                    p3 = st.selectbox("3º Colocado:", pilotos); exibir_foto_piloto(p3)
+                    p4 = st.selectbox("4º Colocado:", pilotos); exibir_foto_piloto(p4)
                 with col2:
-                    p5 = st.selectbox("5º Colocado:", pilotos); exibir_foto_piloto(p5) # Adicionado
-                    p6 = st.selectbox("6º Colocado:", pilotos); exibir_foto_piloto(p6) # Adicionado
-                    p7 = st.selectbox("7º Colocado:", pilotos); exibir_foto_piloto(p7) # Adicionado
-                    p8 = st.selectbox("8º Colocado:", pilotos); exibir_foto_piloto(p8) # Adicionado
+                    p5 = st.selectbox("5º Colocado:", pilotos); exibir_foto_piloto(p5)
+                    p6 = st.selectbox("6º Colocado:", pilotos); exibir_foto_piloto(p6)
+                    p7 = st.selectbox("7º Colocado:", pilotos); exibir_foto_piloto(p7)
+                    p8 = st.selectbox("8º Colocado:", pilotos); exibir_foto_piloto(p8)
 
             st.divider()
             st.markdown("🔒 **Assinatura de Segurança**")
