@@ -492,61 +492,52 @@ elif menu == "Classificações":
             c3, c4 = st.columns(2)
 
             with c1:
-                st.subheader("🎯 Duelo Interno (% Equipe)")
-                # Cálculo de porcentagem dentro da própria equipe
-                df_duelo = df_master.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
-                df_total_eq = df_duelo.groupby('Equipe')['Pontos'].transform('sum')
-                df_duelo['Porcentagem'] = (df_duelo['Pontos'] / df_total_eq * 100).round(1)
-                
-                # Ordenar para que o maior pontuador da equipe fique na frente/topo
-                df_duelo = df_duelo.sort_values(['Equipe', 'Pontos'], ascending=[True, False])
-                
-                fig1 = px.bar(df_duelo, x="Porcentagem", y="Equipe", color="Usuario", 
-                             orientation='h', text="Porcentagem",
-                             title="Contribuição por Piloto", barmode="stack",
-                             color_discrete_sequence=px.colors.qualitative.Bold)
-                
-                fig1.update_traces(texttemplate='%{text}%', textposition='inside')
-                fig1.update_layout(showlegend=False, height=350, margin=dict(l=0,r=10,t=30,b=0),
-                                  xaxis=dict(range=[0, 100]))
+                st.subheader("🎯 Duelo por Equipe")
+                # Gráfico de barras coloridas por usuário dentro da equipe
+                fig1 = px.bar(df_master, x="Equipe", y="Pontos", color="Usuario", 
+                             title="Pontos Acumulados por Time", barmode="stack")
+                fig1.update_layout(showlegend=False, height=350, margin=dict(l=0,r=0,t=30,b=0))
                 st.plotly_chart(fig1, use_container_width=True)
 
             with c2:
                 st.subheader("🎚️ Performance Individual")
-                # Ordenar para que o líder fique no topo (Invertido como solicitado)
-                perf = df_master.groupby('Usuario')['Pontos'].sum().reset_index().sort_values('Pontos', ascending=True)
-                
+                # Barras horizontais simples e diretas
+                perf = df_master.groupby('Usuario')['Pontos'].sum().reset_index().sort_values('Pontos')
                 fig2 = px.bar(perf, x='Pontos', y='Usuario', orientation='h', text='Pontos',
-                             color='Pontos', color_continuous_scale='Reds')
-                fig2.update_traces(textposition='inside', textfont_size=14)
-                fig2.update_layout(showlegend=False, coloraxis_showscale=False, height=350, 
-                                  margin=dict(l=0,r=10,t=30,b=0))
+                             color_discrete_sequence=['#FF1801'])
+                fig2.update_traces(textposition='inside')
+                fig2.update_layout(height=350, margin=dict(l=0,r=0,t=30,b=0))
                 st.plotly_chart(fig2, use_container_width=True)
 
             with c3:
                 st.subheader("📈 Evolução no Campeonato")
+                # Ordenação manual pelo calendário da F1
                 df_master['OrdemGP'] = df_master['GP'].apply(lambda x: lista_gps.index(x) if x in lista_gps else 99)
                 evo = df_master.sort_values(['Usuario', 'OrdemGP'])
                 evo['Acumulado'] = evo.groupby('Usuario')['Pontos'].cumsum()
                 
                 fig3 = px.line(evo, x='GP', y='Acumulado', color='Usuario', markers=True)
                 fig3.update_layout(height=350, margin=dict(l=0,r=0,t=30,b=0), showlegend=True)
+                # Garante que o eixo X siga a ordem real das corridas
                 fig3.update_xaxes(categoryorder='array', categoryarray=lista_gps)
                 st.plotly_chart(fig3, use_container_width=True)
 
             with c4:
-                st.subheader("🔮 AWS: Chance de Título (%)")
-                # Invertido: Líder no topo
-                rank_prob = rank.sort_values('Prob', ascending=True) 
-                
+                st.subheader("🔮 Chance de Título (%)")
+                tot = rank['Pontos'].sum()
+                rank['Prob'] = ((rank['Pontos'] / tot) * 100).round(1) if tot > 0 else 0
                 fig4 = go.Figure(go.Bar(
-                    x=rank_prob['Prob'], y=rank_prob['Usuario'], orientation='h',
-                    text=rank_prob['Prob'].astype(str) + '%', textposition='outside',
+                    x=rank['Prob'], y=rank['Usuario'], orientation='h',
+                    text=rank['Prob'].astype(str) + '%', textposition='outside',
                     marker=dict(color='gold', line=dict(color='darkgoldenrod', width=2))
                 ))
-                fig4.update_layout(height=350, margin=dict(l=0,r=40,t=30,b=0), 
-                                  xaxis=dict(range=[0, rank_prob['Prob'].max() * 1.2 if not rank_prob.empty else 110]))
+                fig4.update_layout(height=350, margin=dict(l=0,r=20,t=30,b=0), xaxis=dict(range=[0, 110]))
                 st.plotly_chart(fig4, use_container_width=True)
+
+        else:
+            st.info("Aguardando o primeiro GP ser computado para gerar os gráficos.")
+    else:
+        st.warning("Sem dados de palpites ou gabaritos no GitHub.")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
