@@ -434,7 +434,7 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ABA: CLASSIFICAÇÕES (DASHBOARD FINAL) ---
+# --- ABA: CLASSIFICAÇÕES (CORREÇÃO DE ORDEM DOS GRÁFICOS) ---
 elif menu == "Classificações":
     st.header("📊 Dashboard de Performance")
     
@@ -474,21 +474,24 @@ elif menu == "Classificações":
             # 2. GRÁFICOS
             col_graf1, col_graf2 = st.columns(2)
             with col_graf1:
+                # CORREÇÃO AQUI: 'total descending' faz o maior ficar no TOPO
                 fig_user = px.bar(df_soma, x='Pontos', y='Usuario', orientation='h',
                                  title="Ranking Individual (Palpiteiros)", text='Pontos',
                                  color='Pontos', color_continuous_scale='reds')
+                
+                # Esta linha abaixo é o segredo para colocar o George no topo!
                 fig_user.update_layout(yaxis={'categoryorder':'total ascending'}, margin=dict(l=20, r=20, t=40, b=20))
+                
                 st.plotly_chart(fig_user, use_container_width=True)
 
             with col_graf2:
-                # GRÁFICO DE EQUIPES (EXPLICADO ABAIXO)
                 df_eq = df_final.groupby('Equipe')['Pontos'].sum().reset_index()
                 fig_eq = px.pie(df_eq, values='Pontos', names='Equipe', title="Ranking Geral de Equipes",
                                hole=0.4, color_discrete_sequence=px.colors.qualitative.Bold)
                 fig_eq.update_layout(margin=dict(l=20, r=20, t=40, b=20))
                 st.plotly_chart(fig_eq, use_container_width=True)
 
-            # 3. CONSULTA POR GP (FILTRO DE PALPITEIROS)
+            # 3. CONSULTA POR GP
             st.divider()
             st.subheader("📍 Desempenho dos Palpiteiros por GP")
             
@@ -496,7 +499,6 @@ elif menu == "Classificações":
             df_gp = df_final[df_final['GP'] == gp_selecionado]
             
             if not df_gp.empty:
-                # Agrupa apenas por usuário para a tabela de consulta
                 ranking_gp = df_gp.groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
                 ranking_gp.index = ranking_gp.index + 1
                 ranking_gp.columns = ['Palpiteiro', 'Pontos na Rodada']
@@ -506,10 +508,6 @@ elif menu == "Classificações":
                 
             with st.expander("Ver Classificação Geral Completa (Tabela)"):
                 st.dataframe(df_soma)
-        else:
-            st.warning("Aguardando lançamentos.")
-    else:
-        st.info("O Dashboard aparecerá aqui após os resultados oficiais!")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
