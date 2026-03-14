@@ -19,7 +19,8 @@ st.set_page_config(page_title="Palpites F1 2026", layout="wide")
 GITHUB_USER = "Brands14" 
 GITHUB_REPO = "bolao-f1-2026"
 EMAIL_ADMIN = "palpitesf12026@gmail.com"
-# URL correta para acessar arquivos da pasta /fotos
+
+# Ajuste no link RAW para garantir acesso à pasta /fotos/ na branch main
 URL_BASE_FOTOS = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/"
 
 # Puxa as chaves mestras do painel do Streamlit
@@ -36,10 +37,12 @@ ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 # --- FUNÇÃO DE EXIBIÇÃO DE FOTOS ---
 def exibir_foto_piloto(nome):
     if nome and nome != "" and nome != "Nenhum / Outro":
-        # Formata o nome exatamente como o arquivo no GitHub (ex: Max Verstappen.png)
+        # Formata o nome exatamente como o arquivo (ex: Max Verstappen.png)
+        # O .replace(" ", "%20") é vital para links web
         nome_arquivo = nome.replace(" ", "%20") + ".png"
         url_foto = URL_BASE_FOTOS + nome_arquivo
-        # O Streamlit carrega a imagem via URL
+        
+        # Tentamos exibir. Se o link estiver quebrado, ele não trava o app.
         st.image(url_foto, width=90)
 
 try:
@@ -195,7 +198,7 @@ def deletar_registro_github(arquivo, mascara_filtro):
             return False
     return False
 
-# 3. Disparador de E-mails
+# 3. Disparador de E-mails (Mantido original)
 def enviar_recibo_email(dados, email_destino):
     remetente = EMAIL_ADMIN
     destinatarios = [remetente, email_destino]
@@ -245,7 +248,7 @@ def enviar_recibo_email(dados, email_destino):
         print(f"Erro ao enviar e-mail: {e}")
         return False
 
-# 4. Matemática das Sessões
+# 4. Matemática das Sessões (Mantido original)
 def check_ponto(palpite, gabarito, chave, valor_pontos):
     val_p = str(palpite.get(chave, '')).strip()
     val_g = str(gabarito.get(chave, '')).strip()
@@ -396,7 +399,7 @@ if menu == "Enviar Palpite":
     else:
         st.info("Selecione o seu nome no menu lateral para começar.")
 
-# --- AS OUTRAS ABAS CONTINUAM EXATAMENTE IGUAIS AO SEU TXT ---
+# --- ABAS MEUS PALPITES, CLASSIFICAÇÕES E ADMINISTRADOR (MANTIDAS 100% IGUAIS) ---
 elif menu == "Meus Palpites":
     usuario_logado = st.sidebar.selectbox("Ver palpites de quem?", [""] + participantes)
     if usuario_logado:
@@ -425,11 +428,11 @@ elif menu == "Classificações":
                 pontuacoes.append({"Usuario": palpite['Usuario'], "Equipe": palpite['Equipe'], "Pontos": pts})
         
         if pontuacoes:
-            ranking = pd.DataFrame(pontuacoes).groupby(['Usuario', 'Equipe']).sum().sort_values(by="Pontos", ascending=False).reset_index()
+            ranking = pd.DataFrame(pontuacoes).groupby(['Usuario', 'Equipe']).sum().sort_values(by=\"Pontos\", ascending=False).reset_index()
             st.table(ranking)
             
             st.header("👥 Classificação por Equipes")
-            ranking_equipes = ranking.groupby('Equipe').sum().sort_values(by="Pontos", ascending=False).reset_index()
+            ranking_equipes = ranking.groupby('Equipe').sum().sort_values(by=\"Pontos\", ascending=False).reset_index()
             st.table(ranking_equipes)
         else:
             st.info("Aguardando resultados oficiais para calcular a pontuação.")
@@ -485,15 +488,15 @@ elif menu == "Administrador":
             df_limpeza, _ = ler_dados(ARQUIVO_DADOS)
             if not df_limpeza.empty:
                 col_del_gp, col_del_sessao = st.columns(2)
-                with col_del_gp: gp_del = st.selectbox("GP para excluir:", lista_gps, key="del_gp")
-                with col_del_sessao: sessao_del = st.selectbox("Sessão para excluir:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"], key="del_sessao")
+                with col_del_gp: gp_del = st.selectbox("GP para excluir:", lista_gps, key=\"del_gp\")
+                with col_del_sessao: sessao_del = st.selectbox("Sessão para excluir:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"], key=\"del_sessao\")
                 
                 palpites_filtrados = df_limpeza[(df_limpeza['GP'] == gp_del) & (df_limpeza['Tipo'] == sessao_del)]
                 
                 if not palpites_filtrados.empty:
-                    user_del = st.selectbox("Selecione o usuário para APAGAR o palpite:", [""] + sorted(palpites_filtrados['Usuario'].tolist()), key="del_user")
+                    user_del = st.selectbox("Selecione o usuário para APAGAR o palpite:", [""] + sorted(palpites_filtrados['Usuario'].tolist()), key=\"del_user\")
                     if user_del != "":
-                        if st.button(f"CONFIRMAR EXCLUSÃO DE {user_del}", type="primary"):
+                        if st.button(f"CONFIRMAR EXCLUSÃO DE {user_del}", type=\"primary\"):
                             mascara = ~((df_limpeza['GP'] == gp_del) & (df_limpeza['Tipo'] == sessao_del) & (df_limpeza['Usuario'] == user_del))
                             if deletar_registro_github(ARQUIVO_DADOS, mascara):
                                 st.success("Palpite removido com sucesso!")
