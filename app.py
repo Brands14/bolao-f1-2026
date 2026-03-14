@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 from datetime import datetime
 import pytz
 import os
@@ -394,16 +395,27 @@ if menu == "Enviar Palpite":
                         "MaisUltrapassagens": m_ultrapassagens
                     }
                     
+                   if email_confirmacao == email_cadastrado:
                     if guardar_dados(dados_palpite, ARQUIVO_DADOS):
                         enviar_recibo_email(dados_palpite, email_confirmacao)
+                        
+                        # --- NOVO EFEITO DE F1 ---
+                        st.toast(f'Palpite Gravado! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
+                        
+                        placeholder_animacao = st.empty()
+                        for _ in range(3): # Faz os carrinhos piscarem 3 vezes
+                            placeholder_animacao.markdown("<h1 style='text-align: center; font-size: 60px;'>🏎️ 🏁 🏎️ 🏁 🏎️</h1>", unsafe_allow_html=True)
+                            time.sleep(0.4)
+                            placeholder_animacao.empty()
+                            time.sleep(0.2)
+                        
                         st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi gravado.")
-                        st.balloons()
+                        # -------------------------
+                        
                     else:
                         st.error("Ops! Tivemos um problema com o servidor do GitHub. Tente novamente.")
                 else:
                     st.error("E-mail incorreto! O palpite não foi gravado.")
-    else:
-        st.info("👈 Selecione seu nome na barra lateral para começar.")
 
 # --- ÁREA: MEUS PALPITES ---
 elif menu == "Meus Palpites":
