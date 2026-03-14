@@ -15,11 +15,11 @@ from email.mime.multipart import MIMEMultipart
 # 1. Configurações Iniciais
 st.set_page_config(page_title="Palpites F1 2026", layout="wide")
 
-# 🚨 MUDE AQUI: Coloque exatamente o seu nome de usuário do GitHub dentro das aspas!
+# 🚨 CONFIGURAÇÕES DO GITHUB
 GITHUB_USER = "Brands14" 
 GITHUB_REPO = "bolao-f1-2026"
 EMAIL_ADMIN = "palpitesf12026@gmail.com"
-# URL Base para as fotos no seu repositório
+# URL correta para acessar arquivos da pasta /fotos
 URL_BASE_FOTOS = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/"
 
 # Puxa as chaves mestras do painel do Streamlit
@@ -33,13 +33,14 @@ except:
 ARQUIVO_DADOS = "palpites_permanentes_2026.csv" 
 ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 
-# Função auxiliar para exibir a foto do piloto (Somente na aba Enviar Palpite)
+# --- FUNÇÃO DE EXIBIÇÃO DE FOTOS ---
 def exibir_foto_piloto(nome):
     if nome and nome != "" and nome != "Nenhum / Outro":
-        # Formata o nome para URL (substitui espaços por %20)
+        # Formata o nome exatamente como o arquivo no GitHub (ex: Max Verstappen.png)
         nome_arquivo = nome.replace(" ", "%20") + ".png"
         url_foto = URL_BASE_FOTOS + nome_arquivo
-        st.image(url_foto, width=80)
+        # O Streamlit carrega a imagem via URL
+        st.image(url_foto, width=90)
 
 try:
     st.image("WhatsApp Image 2026-02-24 at 16.12.18.png", use_container_width=True)
@@ -395,7 +396,7 @@ if menu == "Enviar Palpite":
     else:
         st.info("Selecione o seu nome no menu lateral para começar.")
 
-# --- ÁREA: MEUS PALPITES ---
+# --- AS OUTRAS ABAS CONTINUAM EXATAMENTE IGUAIS AO SEU TXT ---
 elif menu == "Meus Palpites":
     usuario_logado = st.sidebar.selectbox("Ver palpites de quem?", [""] + participantes)
     if usuario_logado:
@@ -410,7 +411,6 @@ elif menu == "Meus Palpites":
         else:
             st.info("O banco de dados está vazio.")
 
-# --- ÁREA: CLASSIFICAÇÕES ---
 elif menu == "Classificações":
     st.header("🏆 Classificação Geral")
     df_palpites, _ = ler_dados(ARQUIVO_DADOS)
@@ -436,7 +436,6 @@ elif menu == "Classificações":
     else:
         st.info("Os resultados ainda não foram lançados pela Direção de Prova.")
 
-# --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
     st.header("🔐 Painel do Comissário")
     senha_adm = st.text_input("Senha de Acesso:", type="password")
