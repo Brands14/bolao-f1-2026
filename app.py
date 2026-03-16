@@ -486,8 +486,7 @@ elif menu == "Classificações":
                 st.dataframe(eqp, use_container_width=True)
 
             st.divider()
-
-            st.divider()
+     
             # --- DASHBOARD SIMPLIFICADO: DUELO E EVOLUÇÃO ---
             col1, col2 = st.columns(2)
 
