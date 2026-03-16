@@ -443,70 +443,29 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-# --- ABA: CLASSIFICAÇÕES E DASHBOARD ORGANIZADO ---
-elif menu == "Classificações":
-    st.header("📊 Telemetria e Dashboard")
-    
-    import plotly.express as px 
-    import plotly.graph_objects as go
-
-    df_p, _ = ler_dados(ARQUIVO_DADOS)
-    df_g, _ = ler_dados(ARQUIVO_GABARITOS)
-    
-    if not df_p.empty and not df_g.empty:
-        # 1. PROCESSAMENTO DE DADOS (Unificado)
-        resultados = []
-        for _, p in df_p.iterrows():
-            # Busca o gabarito correspondente
-            g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
-            if not g.empty:
-                pts = calcular_pontos_sessao(p, g.iloc[0])
-                resultados.append({
-                    "GP": p['GP'], 
-                    "Usuario": str(p['Usuario']), 
-                    "Equipe": str(p['Equipe']), 
-                    "Pontos": int(pts)
-                })
-        
-        if resultados:
-            df_master = pd.DataFrame(resultados)
-            
-            # --- TABELAS ---
-            t1, t2, t3 = st.tabs(["🏆 Geral", "📍 Por Rodada", "🏎️ Equipes"])
-            with t1:
-                rank = df_master.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
-                rank.index += 1
-                st.dataframe(rank, use_container_width=True)
-            with t2:
-                gp_f = st.selectbox("Filtrar GP:", lista_gps, key="dash_gp")
-                rod = df_master[df_master['GP'] == gp_f].groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
-                st.dataframe(rod, use_container_width=True)
-            with t3:
-                eqp = df_master.groupby('Equipe')['Pontos'].sum().sort_values(ascending=False).reset_index()
-                st.dataframe(eqp, use_container_width=True)
-
-            st.divider()
-     
+st.divider()
             # --- DASHBOARD SIMPLIFICADO: DUELO E EVOLUÇÃO ---
             col1, col2 = st.columns(2)
 
             with col1:
                 st.subheader("🎯 Duelo Interno (% da Equipe)")
                 
-                # 1. Preparação robusta
+                # 1. Preparação Ultra-Segura
                 df_d = df_master.copy()
+                # Garante que as colunas essenciais existem e são texto/número
+                df_d['Equipe'] = df_d['Equipe'].astype(str).str.strip()
+                df_d['Usuario'] = df_d['Usuario'].astype(str).str.strip()
                 df_d['Pontos'] = pd.to_numeric(df_d['Pontos'], errors='coerce').fillna(0)
                 
-                # Agrupamento explícito
+                # 2. Agrupamento para o gráfico
                 resumo_duelo = df_d.groupby(['Equipe', 'Usuario'], as_index=False)['Pontos'].sum()
                 
-                # Só entra se houver dados e pontos
+                # 3. Só desenha se houver dados
                 if not resumo_duelo.empty and resumo_duelo['Pontos'].sum() > 0:
-                    # Cálculo de porcentagem
-                    total_eq = resumo_duelo.groupby('Equipe')['Pontos'].transform('sum')
-                    resumo_duelo['Pct'] = (resumo_duelo['Pontos'] / total_eq * 100).round(1)
+                    # Cálculo de porcentagem por equipe
+                    resumo_duelo['Total_Eq'] = resumo_duelo.groupby('Equipe')['Pontos'].transform('sum')
+                    resumo_duelo['Pct'] = (resumo_duelo['Pontos'] / resumo_duelo['Total_Eq'] * 100).round(1)
                     
-                    # Criação do objeto do gráfico
                     fig_duelo = px.bar(
                         resumo_duelo, 
                         y="Equipe", x="Pct", color="Usuario",
@@ -515,11 +474,9 @@ elif menu == "Classificações":
                         color_discrete_sequence=px.colors.qualitative.T10
                     )
                     
-                    # CONFIGURAÇÃO SEGURA (Só roda se fig_duelo existir)
                     fig_duelo.update_traces(textposition='inside')
                     fig_duelo.update_layout(
-                        height=400,
-                        margin=dict(l=0, r=20, t=30, b=0),
+                        height=400, margin=dict(l=0, r=20, t=30, b=0),
                         xaxis=dict(title="Contribuição (%)", range=[0, 100]),
                         yaxis=dict(title=None),
                         showlegend=True,
@@ -527,16 +484,18 @@ elif menu == "Classificações":
                     )
                     st.plotly_chart(fig_duelo, use_container_width=True)
                 else:
-                    st.info("Aguardando processamento de pontos para o Duelo.")
+                    # Se cair aqui, vamos imprimir o que tem no df_master para debugar
+                    st.warning("Dados de Equipe não encontrados nos palpites pontuados.")
+                    if not df_d.empty:
+                        st.write("Colunas disponíveis:", df_d.columns.tolist())
 
             with col2:
                 st.subheader("📈 Evolução dos Palpiteiros")
-                
+                # (Mantive a lógica que já está funcionando na sua imagem)
                 df_evo = df_master.copy()
                 df_evo['Pontos'] = pd.to_numeric(df_evo['Pontos'], errors='coerce').fillna(0)
                 
                 if not df_evo.empty:
-                    # Garantir ordem dos GPs
                     df_evo['OrdemGP'] = df_evo['GP'].apply(lambda x: lista_gps.index(x) if x in lista_gps else 99)
                     df_evo = df_evo.sort_values(['Usuario', 'OrdemGP'])
                     df_evo['Acumulado'] = df_evo.groupby('Usuario')['Pontos'].cumsum()
@@ -547,14 +506,10 @@ elif menu == "Classificações":
                     )
                     
                     fig_evo.update_layout(
-                        height=400,
-                        margin=dict(l=0, r=0, t=30, b=0),
-                        showlegend=True,
-                        legend=dict(orientation="h", y=-0.2)
+                        height=400, margin=dict(l=0, r=0, t=30, b=0),
+                        showlegend=True, legend=dict(orientation="h", y=-0.2)
                     )
                     st.plotly_chart(fig_evo, use_container_width=True)
-                else:
-                    st.info("Aguardando dados para a Evolução.")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
