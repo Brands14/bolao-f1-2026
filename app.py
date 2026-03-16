@@ -487,86 +487,66 @@ elif menu == "Classificações":
 
             st.divider()
 
+            st.divider()
             # --- DASHBOARD SIMPLIFICADO: DUELO E EVOLUÇÃO ---
             col1, col2 = st.columns(2)
 
             with col1:
                 st.subheader("🎯 Duelo Interno (% da Equipe)")
                 
-                # 1. Garantir dados limpos
-                df_duelo = df_master.copy()
-                df_duelo['Equipe'] = df_duelo['Equipe'].astype(str)
-                df_duelo['Usuario'] = df_duelo['Usuario'].astype(str)
-                df_duelo['Pontos'] = pd.to_numeric(df_duelo['Pontos'], errors='coerce').fillna(0)
-
-                # 2. Agrupar por Equipe e Usuário
-                df_resumo = df_duelo.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
+                # 1. Preparação dos dados
+                df_duelo_base = df_master.copy()
+                df_duelo_base['Pontos'] = pd.to_numeric(df_duelo_base['Pontos'], errors='coerce').fillna(0)
                 
-                # 3. Calcular Totais por Equipe usando map (mais rápido e seguro)
+                df_resumo = df_duelo_base.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
                 total_eq = df_resumo.groupby('Equipe')['Pontos'].sum().to_dict()
                 
-                def converter_para_pct(row):
+                def calc_pct(row):
                     total = total_eq.get(row['Equipe'], 0)
-                    if total > 0:
-                        return round((row['Pontos'] / total) * 100, 1)
-                    return 0
+                    return round((row['Pontos'] / total) * 100, 1) if total > 0 else 0
 
-                df_resumo['Porcentagem'] = df_resumo.apply(converter_para_pct, axis=1)
-                
-                # 4. Só gera o gráfico se houver pontos
-                if df_resumo['Pontos'].sum() > 0:
+                df_resumo['Porcentagem'] = df_resumo.apply(calc_pct, axis=1)
+
+                # 2. Criação do gráfico (se houver pontos)
+                if not df_resumo.empty and df_resumo['Pontos'].sum() > 0:
                     fig_duelo = px.bar(
                         df_resumo, 
-                        y="Equipe", 
-                        x="Porcentagem", 
-                        color="Usuario",
-                        orientation='h',
+                        y="Equipe", x="Porcentagem", color="Usuario",
+                        orientation='h', barmode="stack",
                         text=df_resumo['Porcentagem'].apply(lambda x: f'{x}%' if x > 0 else ""),
-                        barmode="stack",
                         color_discrete_sequence=px.colors.qualitative.T10
                     )
-                    
-                    fig_duelo.update_traces(textposition='inside', insidetextanchor='middle')
+                    fig_duelo.update_traces(textposition='inside')
                     fig_duelo.update_layout(
-                        height=400,
-                        margin=dict(l=0, r=10, t=30, b=0),
-                        xaxis=dict(title="Contribuição (%)", range=[0, 100]),
-                        yaxis=dict(title=None, autoresize=True),
-                        showlegend=True,
+                        height=400, margin=dict(l=0, r=10, t=30, b=0),
+                        xaxis=dict(range=[0, 100]), showlegend=True,
                         legend=dict(orientation="h", y=-0.2)
                     )
                     st.plotly_chart(fig_duelo, use_container_width=True)
                 else:
-                    st.info("Aguardando pontuação para calcular o duelo.")
+                    st.info("Aguardando dados de pontuação para o Duelo.")
 
             with col2:
                 st.subheader("📈 Evolução dos Palpiteiros")
-                # 1. Garantir a ordem cronológica dos GPs
-                df_master['OrdemGP'] = df_master['GP'].apply(lambda x: lista_gps.index(x) if x in lista_gps else 99)
-                df_evo = df_master.sort_values(['Usuario', 'OrdemGP'])
                 
-                # 2. Calcular a soma acumulada de pontos por usuário
+                # 1. Preparação da Evolução
+                df_evo = df_master.copy()
+                df_evo['OrdemGP'] = df_evo['GP'].apply(lambda x: lista_gps.index(x) if x in lista_gps else 99)
+                df_evo = df_evo.sort_values(['Usuario', 'OrdemGP'])
                 df_evo['Acumulado'] = df_evo.groupby('Usuario')['Pontos'].cumsum()
-                
-                # 3. Gráfico de Linhas
-                fig_evo = px.line(
-                    df_evo, 
-                    x='GP', 
-                    y='Acumulado', 
-                    color='Usuario', 
-                    markers=True,
-                    category_orders={"GP": lista_gps} # Força a ordem do calendário
-                )
-                
-                fig_evo.update_layout(
-                    height=400,
-                    margin=dict(l=0, r=0, t=30, b=0),
-                    xaxis=dict(title="Grande Prêmio"),
-                    yaxis=dict(title="Pontos Acumulados"),
-                    showlegend=True,
-                    legend=dict(orientation="h", y=-0.2)
-                )
-                st.plotly_chart(fig_evo, use_container_width=True)
+
+                if not df_evo.empty:
+                    fig_evo = px.line(
+                        df_evo, x='GP', y='Acumulado', color='Usuario', markers=True,
+                        category_orders={"GP": lista_gps}
+                    )
+                    fig_evo.update_layout(
+                        height=400, margin=dict(l=0, r=0, t=30, b=0),
+                        showlegend=True, legend=dict(orientation="h", y=-0.2)
+                    )
+                    st.plotly_chart(fig_evo, use_container_width=True)
+                else:
+                    st.info("Aguardando dados para a Evolução.")
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
