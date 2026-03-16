@@ -490,7 +490,7 @@ elif menu == "Classificações":
             # --- DASHBOARD SIMPLIFICADO: DUELO E EVOLUÇÃO ---
             col1, col2 = st.columns(2)
 
-           with col1:
+            with col1:
                 st.subheader("🎯 Duelo Interno (% da Equipe)")
                 
                 # 1. Limpeza profunda dos dados para evitar erros de nomes
