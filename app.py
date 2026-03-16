@@ -492,40 +492,52 @@ elif menu == "Classificações":
 
             with col1:
                 st.subheader("🎯 Duelo Interno (% da Equipe)")
-                # 1. Agrupar pontos por Equipe e Usuário
-                df_duelo = df_master.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
                 
-                # 2. Calcular o total de cada equipe para achar a %
-                total_equipes = df_duelo.groupby('Equipe')['Pontos'].sum().to_dict()
-                
-                def calcular_porcentagem(row):
-                    total = total_equipes.get(row['Equipe'], 0)
-                    return round((row['Pontos'] / total * 100), 1) if total > 0 else 0
+                # 1. Garantir dados limpos
+                df_duelo = df_master.copy()
+                df_duelo['Equipe'] = df_duelo['Equipe'].astype(str)
+                df_duelo['Usuario'] = df_duelo['Usuario'].astype(str)
+                df_duelo['Pontos'] = pd.to_numeric(df_duelo['Pontos'], errors='coerce').fillna(0)
 
-                df_duelo['Porcentagem'] = df_duelo.apply(calcular_porcentagem, axis=1)
+                # 2. Agrupar por Equipe e Usuário
+                df_resumo = df_duelo.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
                 
-                # 3. Gráfico de Barras Empilhadas (Horizontal)
-                fig_duelo = px.bar(
-                    df_duelo, 
-                    y="Equipe", 
-                    x="Porcentagem", 
-                    color="Usuario",
-                    orientation='h',
-                    text=df_duelo['Porcentagem'].apply(lambda x: f'{x}%'),
-                    barmode="stack",
-                    color_discrete_sequence=px.colors.qualitative.T10
-                )
+                # 3. Calcular Totais por Equipe usando map (mais rápido e seguro)
+                total_eq = df_resumo.groupby('Equipe')['Pontos'].sum().to_dict()
                 
-                fig_duelo.update_traces(textposition='inside')
-                fig_duelo.update_layout(
-                    height=400,
-                    margin=dict(l=0, r=10, t=30, b=0),
-                    xaxis=dict(title="Contribuição (%)", range=[0, 100]),
-                    yaxis=dict(title=None),
-                    showlegend=True,
-                    legend=dict(orientation="h", y=-0.2)
-                )
-                st.plotly_chart(fig_duelo, use_container_width=True)
+                def converter_para_pct(row):
+                    total = total_eq.get(row['Equipe'], 0)
+                    if total > 0:
+                        return round((row['Pontos'] / total) * 100, 1)
+                    return 0
+
+                df_resumo['Porcentagem'] = df_resumo.apply(converter_para_pct, axis=1)
+                
+                # 4. Só gera o gráfico se houver pontos
+                if df_resumo['Pontos'].sum() > 0:
+                    fig_duelo = px.bar(
+                        df_resumo, 
+                        y="Equipe", 
+                        x="Porcentagem", 
+                        color="Usuario",
+                        orientation='h',
+                        text=df_resumo['Porcentagem'].apply(lambda x: f'{x}%' if x > 0 else ""),
+                        barmode="stack",
+                        color_discrete_sequence=px.colors.qualitative.T10
+                    )
+                    
+                    fig_duelo.update_traces(textposition='inside', insidetextanchor='middle')
+                    fig_duelo.update_layout(
+                        height=400,
+                        margin=dict(l=0, r=10, t=30, b=0),
+                        xaxis=dict(title="Contribuição (%)", range=[0, 100]),
+                        yaxis=dict(title=None, autoresize=True),
+                        showlegend=True,
+                        legend=dict(orientation="h", y=-0.2)
+                    )
+                    st.plotly_chart(fig_duelo, use_container_width=True)
+                else:
+                    st.info("Aguardando pontuação para calcular o duelo.")
 
             with col2:
                 st.subheader("📈 Evolução dos Palpiteiros")
