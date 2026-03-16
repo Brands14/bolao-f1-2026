@@ -493,47 +493,56 @@ elif menu == "Classificações":
             with col1:
                 st.subheader("🎯 Duelo Interno (% da Equipe)")
                 
-                # 1. Limpeza profunda dos dados para evitar erros de nomes
-                df_duelo_base = df_master.copy()
-                df_duelo_base['Equipe'] = df_duelo_base['Equipe'].astype(str).str.strip().str.upper()
-                df_duelo_base['Usuario'] = df_duelo_base['Usuario'].astype(str).str.strip()
-                df_duelo_base['Pontos'] = pd.to_numeric(df_duelo_base['Pontos'], errors='coerce').fillna(0)
-                
-                # 2. Agrupar e calcular
-                df_resumo = df_duelo_base.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
-                
-                # Só prossegue se a soma total de pontos for maior que zero
-                soma_total = df_resumo['Pontos'].sum()
-                
-                if soma_total > 0:
-                    # Calcular total por equipe
-                    total_eq = df_resumo.groupby('Equipe')['Pontos'].sum().to_dict()
-                    
-                    df_resumo['Porcentagem'] = df_resumo.apply(
-                        lambda r: round((r['Pontos'] / total_eq[r['Equipe']] * 100), 1) if total_eq[r['Equipe']] > 0 else 0, 
-                        axis=1
-                    )
+                # 1. Preparação ultra-segura dos dados
+                df_d = df_master.copy()
+                df_d['Equipe'] = df_d['Equipe'].astype(str).str.strip().str.upper()
+                df_d['Usuario'] = df_d['Usuario'].astype(str).str.strip()
+                df_d['Pontos'] = pd.to_numeric(df_d['Pontos'], errors='coerce').fillna(0)
 
-                    # 3. Criar o gráfico
+                # 2. Agrupar para ter o total por Equipe e por Usuário
+                # Primeiro somamos por Usuário dentro da Equipe
+                resumo_duelo = df_d.groupby(['Equipe', 'Usuario'], as_index=False)['Pontos'].sum()
+                
+                # Calculamos o total de cada Equipe
+                somas_equipes = resumo_duelo.groupby('Equipe')['Pontos'].sum().to_dict()
+
+                # 3. Função para calcular a percentagem
+                def get_pct(row):
+                    total = somas_equipes.get(row['Equipe'], 0)
+                    if total > 0:
+                        return round((row['Pontos'] / total) * 100, 1)
+                    return 0
+
+                resumo_duelo['Porcentagem'] = resumo_duelo.apply(get_pct, axis=1)
+
+                # 4. Só desenha se houver algum ponto no sistema
+                if somas_equipes and sum(somas_equipes.values()) > 0:
+                    # Ordenar para garantir que as equipas fiquem juntas
+                    resumo_duelo = resumo_duelo.sort_values(['Equipe', 'Porcentagem'], ascending=[True, False])
+
                     fig_duelo = px.bar(
-                        df_resumo, 
-                        y="Equipe", x="Porcentagem", color="Usuario",
-                        orientation='h', barmode="stack",
-                        text=df_resumo['Porcentagem'].apply(lambda x: f'{x}%' if x > 0 else ""),
-                        color_discrete_sequence=px.colors.qualitative.T10
+                        resumo_duelo, 
+                        y="Equipe", 
+                        x="Porcentagem", 
+                        color="Usuario",
+                        orientation='h',
+                        barmode="stack",
+                        text=resumo_duelo['Porcentagem'].apply(lambda x: f'{x}%' if x > 0 else ""),
+                        color_discrete_sequence=px.colors.qualitative.Bold
                     )
                     
-                    fig_duelo.update_traces(textposition='inside', textfont_size=14)
+                    fig_duelo.update_traces(textposition='inside', insidetextanchor='middle')
                     fig_duelo.update_layout(
-                        height=400, margin=dict(l=0, r=10, t=30, b=0),
-                        xaxis=dict(range=[0, 100], title="Contribuição (%)"),
-                        yaxis=dict(title=None),
+                        height=400,
+                        margin=dict(l=0, r=20, t=30, b=0),
+                        xaxis=dict(title="Contribuição (%)", range=[0, 100]),
+                        yaxis=dict(title=None, categoryorder='total ascending'),
                         showlegend=True,
                         legend=dict(orientation="h", y=-0.2)
                     )
                     st.plotly_chart(fig_duelo, use_container_width=True)
                 else:
-                    st.warning("Nenhum ponto registrado para calcular o duelo.")
+                    st.info("📊 Os pontos ainda não foram computados para o duelo.")
 
             with col2:
                 st.subheader("📈 Evolução dos Palpiteiros")
