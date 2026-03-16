@@ -487,11 +487,11 @@ elif menu == "Classificações":
 
 # --- NOVA ABA: RESULTADOS REAIS DA F1 ---
             with tab_res:
-            st.header("🏁 Resultados Oficiais - Temporada 2026")
-            st.info("Estes são os resultados oficiais inseridos no gabarito, utilizados para a pontuação do bolão.")
+                st.header("🏁 Resultados Oficiais - Temporada 2026")
+                st.info("Estes são os resultados oficiais inseridos no gabarito, utilizados para a pontuação do bolão.")
             
             # Carregar gabaritos
-            df_g_visual, _ = ler_dados(ARQUIVO_GABARITOS)
+                 df_g_visual, _ = ler_dados(ARQUIVO_GABARITOS)
             
             if not df_g_visual.empty:
                 # Filtrar apenas o que nos interessa para exibição
