@@ -443,7 +443,51 @@ elif menu == "Meus Palpites":
             else:
                 st.error("🚫 Acesso Negado: O e-mail não confere.")
 
-st.divider()
+# --- ABA: CLASSIFICAÇÕES E DASHBOARD ORGANIZADO ---
+elif menu == "Classificações":
+    st.header("📊 Telemetria e Dashboard")
+    
+    import plotly.express as px 
+    import plotly.graph_objects as go
+
+    df_p, _ = ler_dados(ARQUIVO_DADOS)
+    df_g, _ = ler_dados(ARQUIVO_GABARITOS)
+    
+    if not df_p.empty and not df_g.empty:
+        # 1. PROCESSAMENTO DE DADOS (Unificado)
+        resultados = []
+        for _, p in df_p.iterrows():
+            # Busca o gabarito correspondente
+            g = df_g[(df_g['GP'] == p['GP']) & (df_g['Tipo'] == p['Tipo'])]
+            if not g.empty:
+                pts = calcular_pontos_sessao(p, g.iloc[0])
+                resultados.append({
+                    "GP": p['GP'], 
+                    "Usuario": str(p['Usuario']), 
+                    "Equipe": str(p['Equipe']), 
+                    "Pontos": int(pts)
+                })
+        
+        if resultados:
+            df_master = pd.DataFrame(resultados)
+            
+            # --- TABELAS ---
+            t1, t2, t3 = st.tabs(["🏆 Geral", "📍 Por Rodada", "🏎️ Equipes"])
+            with t1:
+                rank = df_master.groupby(['Usuario', 'Equipe'])['Pontos'].sum().sort_values(ascending=False).reset_index()
+                rank.index += 1
+                st.dataframe(rank, use_container_width=True)
+            with t2:
+                gp_f = st.selectbox("Filtrar GP:", lista_gps, key="dash_gp")
+                rod = df_master[df_master['GP'] == gp_f].groupby('Usuario')['Pontos'].sum().sort_values(ascending=False).reset_index()
+                st.dataframe(rod, use_container_width=True)
+            with t3:
+                eqp = df_master.groupby('Equipe')['Pontos'].sum().sort_values(ascending=False).reset_index()
+                st.dataframe(eqp, use_container_width=True)
+
+            st.divider()
+
+            st.divider()
             # --- DASHBOARD SIMPLIFICADO: DUELO E EVOLUÇÃO ---
             col1, col2 = st.columns(2)
 
