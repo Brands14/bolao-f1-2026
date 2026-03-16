@@ -462,11 +462,11 @@ elif menu == "Classificações":
             if not g.empty:
                 pts = calcular_pontos_sessao(p, g.iloc[0])
                 resultados.append({
-                    "GP": p['GP'], 
-                    "Usuario": str(p['Usuario']), 
-                    "Equipe": str(p['Equipe']), 
-                    "Pontos": int(pts)
-                })
+            "GP": p['GP'], 
+            "Usuario": str(p['Usuario']), 
+            "Equipe": str(p.get('Equipe', 'Indefinida')), # O .get evita o erro se a coluna sumir
+            "Pontos": int(pts)
+        })
         
         if resultados:
             df_master = pd.DataFrame(resultados)
@@ -493,19 +493,23 @@ elif menu == "Classificações":
             with col1:
                 st.subheader("🎯 Duelo Interno (% da Equipe)")
                 
-                # 1. Preparação Ultra-Segura
                 df_d = df_master.copy()
-                # Garante que as colunas essenciais existem e são texto/número
-                df_d['Equipe'] = df_d['Equipe'].astype(str).str.strip()
+                
+                # --- TRATAMENTO DE EMERGÊNCIA PARA EQUIPE VAZIA ---
+                # Se a coluna 'Equipe' estiver vazia, tentamos preencher com base no utilizador
+                if 'Equipe' in df_d.columns:
+                    # Criamos um dicionário de utilizador -> equipa (pegando o primeiro valor preenchido que encontrar)
+                    mapeamento_equipes = df_d[df_d['Equipe'].notna() & (df_d['Equipe'] != "")].set_index('Usuario')['Equipe'].to_dict()
+                    df_d['Equipe'] = df_d.apply(lambda row: mapeamento_equipes.get(row['Usuario'], row['Equipe']), axis=1)
+                
+                # Limpeza final
+                df_d['Equipe'] = df_d['Equipe'].astype(str).replace(['nan', 'None', ''], 'Indefinida').str.strip()
                 df_d['Usuario'] = df_d['Usuario'].astype(str).str.strip()
                 df_d['Pontos'] = pd.to_numeric(df_d['Pontos'], errors='coerce').fillna(0)
                 
-                # 2. Agrupamento para o gráfico
                 resumo_duelo = df_d.groupby(['Equipe', 'Usuario'], as_index=False)['Pontos'].sum()
                 
-                # 3. Só desenha se houver dados
                 if not resumo_duelo.empty and resumo_duelo['Pontos'].sum() > 0:
-                    # Cálculo de porcentagem por equipe
                     resumo_duelo['Total_Eq'] = resumo_duelo.groupby('Equipe')['Pontos'].transform('sum')
                     resumo_duelo['Pct'] = (resumo_duelo['Pontos'] / resumo_duelo['Total_Eq'] * 100).round(1)
                     
@@ -527,10 +531,7 @@ elif menu == "Classificações":
                     )
                     st.plotly_chart(fig_duelo, use_container_width=True)
                 else:
-                    # Se cair aqui, vamos imprimir o que tem no df_master para debugar
-                    st.warning("Dados de Equipe não encontrados nos palpites pontuados.")
-                    if not df_d.empty:
-                        st.write("Colunas disponíveis:", df_d.columns.tolist())
+                    st.warning("⚠️ Sem dados de equipas. Verifique se os palpites têm equipas atribuídas.")
 
             with col2:
                 st.subheader("📈 Evolução dos Palpiteiros")
