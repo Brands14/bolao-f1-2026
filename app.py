@@ -485,51 +485,50 @@ elif menu == "Classificações":
                 eqp = df_master.groupby('Equipe')['Pontos'].sum().sort_values(ascending=False).reset_index()
                 st.dataframe(eqp, use_container_width=True)
 
-# --- NOVA ABA: RESULTADOS REAIS DA F1 ---
+    # --- NOVA ABA: RESULTADOS REAIS DA F1 ---
             with tab_res:
                 st.header("🏁 Resultados Oficiais - Temporada 2026")
                 st.info("Estes são os resultados oficiais inseridos no gabarito, utilizados para a pontuação do bolão.")
-            
-            # Carregar gabaritos
-                 df_g_visual, _ = ler_dados(ARQUIVO_GABARITOS)
-            
-            if not df_g_visual.empty:
-                # Filtrar apenas o que nos interessa para exibição
-                # Vamos focar na Corrida Principal e Pole Position
-                gps_disponiveis = df_g_visual['GP'].unique().tolist()
                 
-                gp_selecionado = st.selectbox("Selecione o GP para ver o resultado detalhado:", 
-                                              ["Todos"] + gps_disponiveis[::-1]) # Inverte para ver o último primeiro
+                # Carregar gabaritos
+                df_g_visual, _ = ler_dados(ARQUIVO_GABARITOS)
                 
-                if gp_selecionado == "Todos":
-                    # Exibição resumida de todos os vencedores (Corrida Principal)
-                    vencedores = df_g_visual[df_g_visual['Tipo'] == "Corrida Principal"][['GP', 'P1', 'P2', 'P3', 'V_Rapida']]
-                    vencedores.columns = ['Grande Prêmio', '🥇 Vencedor', '🥈 2º Lugar', '🥉 3º Lugar', '⏱️ Volta Rápida']
-                    st.subheader("🏆 Pódios da Temporada")
-                    st.dataframe(vencedores, use_container_width=True, hide_index=True)
-                else:
-                    # Exibição detalhada do GP selecionado
-                    dados_gp = df_g_visual[df_g_visual['GP'] == gp_selecionado]
+                if not df_g_visual.empty:
+                    # Filtrar apenas o que nos interessa para exibição
+                    # Vamos focar na Corrida Principal e Pole Position
+                    gps_disponiveis = df_g_visual['GP'].unique().tolist()
                     
-                    for _, sessao in dados_gp.iterrows():
-                        with st.expander(f"📊 {sessao['Tipo']}", expanded=True):
-                            # Criar colunas para um visual de "Placar"
-                            c1, c2, c3 = st.columns(3)
-                            c1.metric("🥇 1º Lugar", sessao['P1'])
-                            c2.metric("🥈 2º Lugar", sessao['P2'])
-                            c3.metric("🥉 3º Lugar", sessao['P3'])
-                            
-                            st.write("---")
-                            cols = st.columns(5)
-                            for i in range(4, 9): # P4 até P8
-                                cols[i-4].write(f"**{i}º:** {sessao[f'P{i}']}")
-                            
-                            if sessao['Tipo'] == "Corrida Principal":
-                                st.write(f"🏁 **Volta Rápida:** {sessao['V_Rapida']}")
-            else:
-                st.warning("Nenhum resultado oficial foi lançado ainda.")
-
-            
+                    gp_selecionado = st.selectbox("Selecione o GP para ver o resultado detalhado:", 
+                                                  ["Todos"] + gps_disponiveis[::-1]) # Inverte para ver o último primeiro
+                    
+                    if gp_selecionado == "Todos":
+                        # Exibição resumida de todos os vencedores (Corrida Principal)
+                        vencedores = df_g_visual[df_g_visual['Tipo'] == "Corrida Principal"][['GP', 'P1', 'P2', 'P3', 'V_Rapida']]
+                        vencedores.columns = ['Grande Prêmio', '🥇 Vencedor', '🥈 2º Lugar', '🥉 3º Lugar', '⏱️ Volta Rápida']
+                        st.subheader("🏆 Pódios da Temporada")
+                        st.dataframe(vencedores, use_container_width=True, hide_index=True)
+                    else:
+                        # Exibição detalhada do GP selecionado
+                        dados_gp = df_g_visual[df_g_visual['GP'] == gp_selecionado]
+                        
+                        for _, sessao in dados_gp.iterrows():
+                            with st.expander(f"📊 {sessao['Tipo']}", expanded=True):
+                                # Criar colunas para um visual de "Placar"
+                                c1, c2, c3 = st.columns(3)
+                                c1.metric("🥇 1º Lugar", sessao['P1'])
+                                c2.metric("🥈 2º Lugar", sessao['P2'])
+                                c3.metric("🥉 3º Lugar", sessao['P3'])
+                                
+                                st.write("---")
+                                cols = st.columns(5)
+                                for i in range(4, 9): # P4 até P8
+                                    cols[i-4].write(f"**{i}º:** {sessao[f'P{i}']}")
+                                
+                                if sessao['Tipo'] == "Corrida Principal":
+                                    st.write(f"🏁 **Volta Rápida:** {sessao['V_Rapida']}")
+                else:
+                    st.warning("Nenhum resultado oficial foi lançado ainda.")
+                
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
