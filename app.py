@@ -487,84 +487,74 @@ elif menu == "Classificações":
 
             st.divider()
 
-            # --- DASHBOARD (OS 4 QUADRANTES) ---
-            c1, c2 = st.columns(2)
-            c3, c4 = st.columns(2)
+            # --- DASHBOARD SIMPLIFICADO: DUELO E EVOLUÇÃO ---
+            col1, col2 = st.columns(2)
 
-            with c1:
-                st.subheader("🎯 Duelo Interno (Pontos)")
-                
-                # 1. Agrupar dados
+            with col1:
+                st.subheader("🎯 Duelo Interno (% da Equipe)")
+                # 1. Agrupar pontos por Equipe e Usuário
                 df_duelo = df_master.groupby(['Equipe', 'Usuario'])['Pontos'].sum().reset_index()
-                equipes = sorted(df_duelo['Equipe'].unique())
                 
-                fig1 = go.Figure()
+                # 2. Calcular o total de cada equipe para achar a %
+                total_equipes = df_duelo.groupby('Equipe')['Pontos'].sum().to_dict()
+                
+                def calcular_porcentagem(row):
+                    total = total_equipes.get(row['Equipe'], 0)
+                    return round((row['Pontos'] / total * 100), 1) if total > 0 else 0
 
-                # 2. Criar uma série de barras para cada usuário de forma dinâmica
-                usuarios_unicos = df_duelo['Usuario'].unique()
-                for i, user in enumerate(usuarios_unicos):
-                    dff = df_duelo[df_duelo['Usuario'] == user]
-                    # Só adiciona ao gráfico se o usuário tiver pontos em alguma equipe
-                    fig1.add_trace(go.Bar(
-                        name=user,
-                        x=dff['Equipe'],
-                        y=dff['Pontos'],
-                        text=dff['Pontos'],
-                        textposition='auto',
-                    ))
-
-                # 3. Configurações de Layout
-                fig1.update_layout(
-                    barmode='group', # Barras dos parceiros lado a lado
-                    height=350,
-                    margin=dict(l=10, r=10, t=30, b=10),
-                    showlegend=True, # Legenda ajuda a identificar quem é quem no duelo
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                    xaxis=dict(title=None),
-                    yaxis=dict(title="Pontos Totais")
+                df_duelo['Porcentagem'] = df_duelo.apply(calcular_porcentagem, axis=1)
+                
+                # 3. Gráfico de Barras Empilhadas (Horizontal)
+                fig_duelo = px.bar(
+                    df_duelo, 
+                    y="Equipe", 
+                    x="Porcentagem", 
+                    color="Usuario",
+                    orientation='h',
+                    text=df_duelo['Porcentagem'].apply(lambda x: f'{x}%'),
+                    barmode="stack",
+                    color_discrete_sequence=px.colors.qualitative.T10
                 )
                 
-                st.plotly_chart(fig1, use_container_width=True)
+                fig_duelo.update_traces(textposition='inside')
+                fig_duelo.update_layout(
+                    height=400,
+                    margin=dict(l=0, r=10, t=30, b=0),
+                    xaxis=dict(title="Contribuição (%)", range=[0, 100]),
+                    yaxis=dict(title=None),
+                    showlegend=True,
+                    legend=dict(orientation="h", y=-0.2)
+                )
+                st.plotly_chart(fig_duelo, use_container_width=True)
 
-            with c2:
-                st.subheader("🎚️ Performance Individual")
-                # Barras horizontais simples e diretas
-                perf = df_master.groupby('Usuario')['Pontos'].sum().reset_index().sort_values('Pontos')
-                fig2 = px.bar(perf, x='Pontos', y='Usuario', orientation='h', text='Pontos',
-                             color_discrete_sequence=['#FF1801'])
-                fig2.update_traces(textposition='inside')
-                fig2.update_layout(height=350, margin=dict(l=0,r=0,t=30,b=0))
-                st.plotly_chart(fig2, use_container_width=True)
-
-            with c3:
-                st.subheader("📈 Evolução no Campeonato")
-                # Ordenação manual pelo calendário da F1
+            with col2:
+                st.subheader("📈 Evolução dos Palpiteiros")
+                # 1. Garantir a ordem cronológica dos GPs
                 df_master['OrdemGP'] = df_master['GP'].apply(lambda x: lista_gps.index(x) if x in lista_gps else 99)
-                evo = df_master.sort_values(['Usuario', 'OrdemGP'])
-                evo['Acumulado'] = evo.groupby('Usuario')['Pontos'].cumsum()
+                df_evo = df_master.sort_values(['Usuario', 'OrdemGP'])
                 
-                fig3 = px.line(evo, x='GP', y='Acumulado', color='Usuario', markers=True)
-                fig3.update_layout(height=350, margin=dict(l=0,r=0,t=30,b=0), showlegend=True)
-                # Garante que o eixo X siga a ordem real das corridas
-                fig3.update_xaxes(categoryorder='array', categoryarray=lista_gps)
-                st.plotly_chart(fig3, use_container_width=True)
-
-            with c4:
-                st.subheader("🔮 Chance de Título (%)")
-                tot = rank['Pontos'].sum()
-                rank['Prob'] = ((rank['Pontos'] / tot) * 100).round(1) if tot > 0 else 0
-                fig4 = go.Figure(go.Bar(
-                    x=rank['Prob'], y=rank['Usuario'], orientation='h',
-                    text=rank['Prob'].astype(str) + '%', textposition='outside',
-                    marker=dict(color='gold', line=dict(color='darkgoldenrod', width=2))
-                ))
-                fig4.update_layout(height=350, margin=dict(l=0,r=20,t=30,b=0), xaxis=dict(range=[0, 110]))
-                st.plotly_chart(fig4, use_container_width=True)
-
-        else:
-            st.info("Aguardando o primeiro GP ser computado para gerar os gráficos.")
-    else:
-        st.warning("Sem dados de palpites ou gabaritos no GitHub.")
+                # 2. Calcular a soma acumulada de pontos por usuário
+                df_evo['Acumulado'] = df_evo.groupby('Usuario')['Pontos'].cumsum()
+                
+                # 3. Gráfico de Linhas
+                fig_evo = px.line(
+                    df_evo, 
+                    x='GP', 
+                    y='Acumulado', 
+                    color='Usuario', 
+                    markers=True,
+                    category_orders={"GP": lista_gps} # Força a ordem do calendário
+                )
+                
+                fig_evo.update_layout(
+                    height=400,
+                    margin=dict(l=0, r=0, t=30, b=0),
+                    xaxis=dict(title="Grande Prêmio"),
+                    yaxis=dict(title="Pontos Acumulados"),
+                    showlegend=True,
+                    legend=dict(orientation="h", y=-0.2)
+                )
+                st.plotly_chart(fig_evo, use_container_width=True)
         
 # --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
