@@ -487,7 +487,6 @@ elif menu == "Classificações":
 
             st.divider()
 
-            st.divider()
             # --- DASHBOARD SIMPLIFICADO: DUELO E EVOLUÇÃO ---
             col1, col2 = st.columns(2)
 
