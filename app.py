@@ -306,21 +306,20 @@ st.sidebar.header("Navegação")
 menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
 # --- ÁREA: ENVIAR PALPITE ---
-
-    # --- ÁREA: ENVIAR PALPITE ---
-
-     if menu == "Enviar Palpite":
+    if menu == "Enviar Palpite":
         usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
         
         if usuario_logado:
+            # Identifica a equipe automaticamente
             equipe_usuario = next((equipe for equipe, membros in equipes.items() if usuario_logado in membros), "Sem Equipe")
+            
             st.header(f"🏎️ Palpite de {usuario_logado} ({equipe_usuario})")
 
-            # --- FILTRO PARA OCULTAR O QUE JÁ PASSOU ---
+            # --- LÓGICA DE FILTRO DOS GPS (SÓ MOSTRA OS QUE NÃO PASSARAM) ---
             fuso_sp = pytz.timezone("America/Sao_Paulo")
             hoje = datetime.now(fuso_sp).date()
             
-            # Só mostra o GP se a data cadastrada for maior ou igual a hoje
+            # Filtra a lista: se a data do GP for menor que hoje, ele não entra na lista
             gps_disponiveis = [gp for gp in lista_gps if cronograma_gps[gp].date() >= hoje]
             
             if not gps_disponiveis:
@@ -332,17 +331,19 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
             with col2:
                 sessao = st.selectbox("Sessão:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"])
 
+            # Verificação de horário (Bloqueio 30 min antes)
             agora = datetime.now(fuso_sp)
             limite = cronograma_gps[gp_escolhido].replace(tzinfo=fuso_sp)
             restante = (limite - agora).total_seconds()
             
             if restante < 1800:
-                st.error(f"❌ Prazo encerrado para {gp_escolhido}!")
+                st.error(f"❌ Prazo encerrado! Os palpites para o {gp_escolhido} fecharam 30 minutos antes do início.")
             else:
-                st.info(f"⏳ Prazo até: {limite.strftime('%d/%m %H:%M')}")
+                st.info(f"⏳ Você tem até {limite.strftime('%d/%m %H:%M')} para enviar seu palpite.")
                 
                 with st.form("form_palpite"):
                     st.subheader("Escolha seus pilotos (P1 ao P8):")
+                    
                     c1, c2, c3, c4 = st.columns(4)
                     p1 = c1.selectbox("🥇 1º Lugar", lista_pilotos, key="p1")
                     p2 = c2.selectbox("🥈 2º Lugar", lista_pilotos, key="p2")
@@ -355,15 +356,20 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
                     p7 = c7.selectbox("7º Lugar", lista_pilotos, key="p7")
                     p8 = c8.selectbox("8º Lugar", lista_pilotos, key="p8")
                     
-                    v_rapida = st.selectbox("⏱️ Volta Rápida:", ["N/A"] + lista_pilotos)
+                    v_rapida = st.selectbox("⏱️ Volta Rápida (Apenas para Corrida Principal):", ["N/A"] + lista_pilotos)
+                    
                     submit = st.form_submit_button("ENVIAR PALPITE")
                     
                     if submit:
                         dados_palpite = {
-                            "GP": gp_escolhido, "Tipo": sessao, "Usuario": usuario_logado,
-                            "Equipe": equipe_usuario, "P1": p1, "P2": p2, "P3": p3, "P4": p4,
+                            "GP": gp_escolhido,
+                            "Tipo": sessao,
+                            "Usuario": usuario_logado,
+                            "Equipe": equipe_usuario,
+                            "P1": p1, "P2": p2, "P3": p3, "P4": p4,
                             "P5": p5, "P6": p6, "P7": p7, "P8": p8,
-                            "V_Rapida": v_rapida, "Timestamp": agora.strftime("%d/%m/%Y %H:%M:%S")
+                            "V_Rapida": v_rapida,
+                            "Timestamp": agora.strftime("%d/%m/%Y %H:%M:%S")
                         }
                         if salvar_palpite_github(ARQUIVO_DADOS, dados_palpite):
                             st.success(f"✅ Palpite enviado!")
