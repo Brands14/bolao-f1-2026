@@ -315,35 +315,28 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
             
             st.header(f"🏎️ Palpite de {usuario_logado} ({equipe_usuario})")
 
-            # --- FILTRO DE SEGURANÇA: MOSTRAR APENAS GPS FUTUROS OU DE HOJE ---
-            # Pegamos a data atual de Brasília
+            # --- FILTRO DE SEGURANÇA: MOSTRAR APENAS GPS FUTUROS ---
             fuso_sp = pytz.timezone("America/Sao_Paulo")
             hoje = datetime.now(fuso_sp).date()
             
-            # Filtro rigoroso: Só entra na lista se a data do cronograma for MAIOR ou IGUAL a hoje
-            gps_disponiveis = []
-            for gp in lista_gps:
-                data_gp = cronograma_gps[gp].date()
-                if data_gp >= hoje:
-                    gps_disponiveis.append(gp)
+            # Criamos a lista filtrada: só entra se a data no cronograma for hoje ou depois
+            gps_disponiveis = [gp for gp in lista_gps if cronograma_gps[gp].date() >= hoje]
             
-            # Se a lista ficar vazia (fim do campeonato), mostra apenas o último
             if not gps_disponiveis:
                 gps_disponiveis = [lista_gps[-1]]
 
-            # Layout de seleção
             col1, col2 = st.columns(2)
             with col1:
                 gp_escolhido = st.selectbox("Selecione o Grande Prêmio:", gps_disponiveis)
             with col2:
                 sessao = st.selectbox("Sessão:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"])
 
-            # Verificação de horário (Bloqueio 30 min antes)
+            # Verificação de horário (30 min antes)
             agora = datetime.now(fuso_sp)
             limite = cronograma_gps[gp_escolhido].replace(tzinfo=fuso_sp)
             restante = (limite - agora).total_seconds()
             
-            if restante < 1800: # 1800 segundos = 30 minutos
+            if restante < 1800:
                 st.error(f"❌ Prazo encerrado! Os palpites para o {gp_escolhido} fecharam 30 minutos antes do início.")
             else:
                 st.info(f"⏳ Você tem até {limite.strftime('%d/%m %H:%M')} para enviar seu palpite.")
