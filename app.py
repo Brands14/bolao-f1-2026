@@ -318,7 +318,17 @@ if menu == "Enviar Palpite":
 
         col_gp, col_tipo = st.columns(2)
         with col_gp:
-            gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps)
+            # --- FILTRAR APENAS GPs FUTUROS (QUE AINDA NÃO TÊM GABARITO REGISTRADO) ---
+df_gabaritos, _ = ler_dados(ARQUIVO_GABARITOS)
+
+if not df_gabaritos.empty:
+    gps_ja_realizados = df_gabaritos['GP'].unique().tolist()
+else:
+    gps_ja_realizados = []
+
+lista_gps_futuros = [gp for gp in lista_gps if gp not in gps_ja_realizados]
+
+gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps_futuros)
         with col_tipo:
             sessao_opcoes = ["Classificação Principal (Pole)", "Corrida Principal"]
             if gp_selecionado in sprint_gps:
