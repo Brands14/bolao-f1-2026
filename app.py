@@ -306,6 +306,7 @@ st.sidebar.header("Navegação")
 menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
 # --- ÁREA: ENVIAR PALPITE ---
+# --- ÁREA: ENVIAR PALPITE ---
     if menu == "Enviar Palpite":
         usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
         
@@ -374,9 +375,25 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
                             "Timestamp": agora.strftime("%d/%m/%Y %H:%M:%S")
                         }
                         
-                        if salvar_palpite_github(ARQUIVO_DADOS, dados_palpite):
-                            st.success(f"✅ Palpite enviado com sucesso!")
-                            st.balloons()
+                    
+                    if guardar_dados(dados_palpite, ARQUIVO_DADOS):
+                        enviar_recibo_email(dados_palpite, email_confirmacao)
+                        
+                        # Efeito de F1
+                        st.toast(f'Palpite Gravado! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
+                        
+                        placeholder_animacao = st.empty()
+                        for _ in range(3):
+                            placeholder_animacao.markdown("<h1 style='text-align: center; font-size: 60px;'>🏎️ 🏁 🏎️ 🏁 🏎️</h1>", unsafe_allow_html=True)
+                            time.sleep(0.4)
+                            placeholder_animacao.empty()
+                            time.sleep(0.2)
+                        
+                        st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi gravado.")
+                    else:
+                        st.error("Ops! Tivemos um problema com o servidor do GitHub. Tente novamente.")
+                else:
+                    st.error("E-mail incorreto! O palpite não foi gravado.")
 
 # --- ÁREA: MEUS PALPITES ---
 elif menu == "Meus Palpites":
