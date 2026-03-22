@@ -306,113 +306,127 @@ st.sidebar.header("Navegação")
 menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
 # --- ÁREA: ENVIAR PALPITE ---
-if menu == "Enviar Palpite":
-    usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
-    
-    if usuario_logado:
-        # Identifica a equipe automaticamente
-        equipe_usuario = next((equipe for equipe, membros in equipes.items() if usuario_logado in membros), "Sem Equipe")
+    if menu == "Enviar Palpite":
+        usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
         
-        st.markdown(f"### 🏎️ Piloto: **{usuario_logado}**")
-        st.caption(f"Equipe: {equipe_usuario}")
-
-        col_gp, col_tipo = st.columns(2)
-        with col_gp:
-            gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps)
-        with col_tipo:
-            sessao_opcoes = ["Classificação Principal (Pole)", "Corrida Principal"]
-            if gp_selecionado in sprint_gps:
-                sessao_opcoes = ["Qualy Sprint (Pole)", "Corrida Sprint", "Classificação Principal (Pole)", "Corrida Principal"]
-            tipo_sessao = st.selectbox("Selecione a Sessão:", sessao_opcoes)
-
-        st.divider()
-        st.header(f"🏁 {gp_selecionado} - {tipo_sessao}")
-
-        # Variáveis auxiliares para o formulário
-        pole = p1 = p2 = p3 = p4 = p5 = p6 = p7 = p8 = p9 = p10 = v_rapida = p_abandono = m_ultrapassagens = ""
-
-        # --- LÓGICA DE SELEÇÃO COM FOTOS (FORA DO FORM PARA SER INSTANTÂNEO) ---
-        if "Pole" in tipo_sessao:
-            pole = st.selectbox("Selecione o Pole Position:", pilotos, key="sel_pole")
-            exibir_foto_piloto(pole)
-
-        elif tipo_sessao == "Corrida Principal":
-            c1, c2 = st.columns(2)
-            with c1:
-                p1 = st.selectbox("1º Colocado (Vencedor):", pilotos, key="p1"); exibir_foto_piloto(p1)
-                p2 = st.selectbox("2º Colocado:", pilotos, key="p2"); exibir_foto_piloto(p2)
-                p3 = st.selectbox("3º Colocado:", pilotos, key="p3"); exibir_foto_piloto(p3)
-                p4 = st.selectbox("4º Colocado:", pilotos, key="p4"); exibir_foto_piloto(p4)
-                p5 = st.selectbox("5º Colocado:", pilotos, key="p5"); exibir_foto_piloto(p5)
-            with c2:
-                p6 = st.selectbox("6º Colocado:", pilotos, key="p6"); exibir_foto_piloto(p6)
-                p7 = st.selectbox("7º Colocado:", pilotos, key="p7"); exibir_foto_piloto(p7)
-                p8 = st.selectbox("8º Colocado:", pilotos, key="p8"); exibir_foto_piloto(p8)
-                p9 = st.selectbox("9º Colocado:", pilotos, key="p9"); exibir_foto_piloto(p9)
-                p10 = st.selectbox("10º Colocado:", pilotos, key="p10"); exibir_foto_piloto(p10)
+        if usuario_logado:
+            # Identifica a equipe automaticamente
+            equipe_usuario = next((equipe for equipe, membros in equipes.items() if usuario_logado in membros), "Sem Equipe")
             
+            st.markdown(f"### 🏎️ Piloto: **{usuario_logado}**")
+            st.caption(f"Equipe: {equipe_usuario}")
+
+            # --- FILTRO DE SEGURANÇA: MOSTRAR APENAS GPS FUTUROS ---
+            fuso_sp = pytz.timezone("America/Sao_Paulo")
+            hoje = datetime.now(fuso_sp).date()
+            
+            # Filtra a lista_gps comparando com o cronograma_gps
+            gps_disponiveis = [gp for gp in lista_gps if cronograma_gps[gp].date() >= hoje]
+            
+            if not gps_disponiveis:
+                gps_disponiveis = [lista_gps[-1]]
+
+            col_gp, col_tipo = st.columns(2)
+            with col_gp:
+                # Agora usa a lista filtrada:
+                gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", gps_disponiveis)
+            with col_tipo:
+                sessao_opcoes = ["Classificação Principal (Pole)", "Corrida Principal"]
+                # sprint_gps deve estar definida no seu código global
+                if gp_selecionado in globals().get('sprint_gps', []):
+                    sessao_opcoes = ["Qualy Sprint (Pole)", "Corrida Sprint", "Classificação Principal (Pole)", "Corrida Principal"]
+                tipo_sessao = st.selectbox("Selecione a Sessão:", sessao_opcoes)
+
             st.divider()
-            mv_col, ab_col, mu_col = st.columns(3)
-            with mv_col:
-                v_rapida = st.selectbox("Melhor Volta:", pilotos, key="vr"); exibir_foto_piloto(v_rapida)
-            with ab_col:
-                p_abandono = st.selectbox("1º Abandono:", pilotos, key="ab"); exibir_foto_piloto(p_abandono)
-            with mu_col:
-                m_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos, key="mu"); exibir_foto_piloto(m_ultrapassagens)
+            st.header(f"🏁 {gp_selecionado} - {tipo_sessao}")
 
-        elif tipo_sessao == "Corrida Sprint":
-            c1, c2 = st.columns(2)
-            with c1:
-                p1 = st.selectbox("1º Colocado:", pilotos, key="s1"); exibir_foto_piloto(p1)
-                p2 = st.selectbox("2º Colocado:", pilotos, key="s2"); exibir_foto_piloto(p2)
-                p3 = st.selectbox("3º Colocado:", pilotos, key="s3"); exibir_foto_piloto(p3)
-                p4 = st.selectbox("4º Colocado:", pilotos, key="s4"); exibir_foto_piloto(p4)
-            with c2:
-                p5 = st.selectbox("5º Colocado:", pilotos, key="s5"); exibir_foto_piloto(p5)
-                p6 = st.selectbox("6º Colocado:", pilotos, key="s6"); exibir_foto_piloto(p6)
-                p7 = st.selectbox("7º Colocado:", pilotos, key="s7"); exibir_foto_piloto(p7)
-                p8 = st.selectbox("8º Colocado:", pilotos, key="s8"); exibir_foto_piloto(p8)
+            # Variáveis auxiliares para o formulário
+            pole = p1 = p2 = p3 = p4 = p5 = p6 = p7 = p8 = p9 = p10 = v_rapida = p_abandono = m_ultrapassagens = ""
 
-        # --- FORMULÁRIO FINAL APENAS PARA O BOTÃO DE ENVIO ---
-        with st.form("confirmar_palpite"):
-            st.write("---")
-            email_confirmacao = st.text_input("Confirme seu e-mail cadastrado para validar o envio:", type="password")
-            
-            if st.form_submit_button("GRAVAR MEU PALPITE FINAL 🏎️"):
-                if email_confirmacao.lower() == emails_autorizados.get(usuario_logado, "").lower():
-                    # Monta o dicionário de dados (exatamente com as chaves do seu CSV original)
-                    dados_palpite = {
-                        "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
-                        "GP": gp_selecionado,
-                        "Tipo": tipo_sessao,
-                        "Usuario": usuario_logado,
-                        "Equipe": equipe_usuario,
-                        "Pole": pole,
-                        "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
-                        "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
-                        "VoltaRapida": v_rapida,
-                        "PrimeiroAbandono": p_abandono,
-                        "MaisUltrapassagens": m_ultrapassagens
-                    }
+            # --- LÓGICA DE SELEÇÃO COM FOTOS (FORA DO FORM PARA SER INSTANTÂNEO) ---
+            # Nota: usei 'lista_pilotos' pois é a variável que está no seu TXT original
+            if "Pole" in tipo_sessao:
+                pole = st.selectbox("Selecione o Pole Position:", lista_pilotos, key="sel_pole")
+                exibir_foto_piloto(pole)
+
+            elif tipo_sessao == "Corrida Principal":
+                c1, c2 = st.columns(2)
+                with c1:
+                    p1 = st.selectbox("1º Colocado (Vencedor):", lista_pilotos, key="p1"); exibir_foto_piloto(p1)
+                    p2 = st.selectbox("2º Colocado:", lista_pilotos, key="p2"); exibir_foto_piloto(p2)
+                    p3 = st.selectbox("3º Colocado:", lista_pilotos, key="p3"); exibir_foto_piloto(p3)
+                    p4 = st.selectbox("4º Colocado:", lista_pilotos, key="p4"); exibir_foto_piloto(p4)
+                    p5 = st.selectbox("5º Colocado:", lista_pilotos, key="p5"); exibir_foto_piloto(p5)
+                with c2:
+                    p6 = st.selectbox("6º Colocado:", lista_pilotos, key="p6"); exibir_foto_piloto(p6)
+                    p7 = st.selectbox("7º Colocado:", lista_pilotos, key="p7"); exibir_foto_piloto(p7)
+                    p8 = st.selectbox("8º Colocado:", lista_pilotos, key="p8"); exibir_foto_piloto(p8)
+                    p9 = st.selectbox("9º Colocado:", lista_pilotos, key="p9"); exibir_foto_piloto(p9)
+                    p10 = st.selectbox("10º Colocado:", lista_pilotos, key="p10"); exibir_foto_piloto(p10)
+                
+                st.divider()
+                mv_col, ab_col, mu_col = st.columns(3)
+                with mv_col:
+                    v_rapida = st.selectbox("Melhor Volta:", lista_pilotos, key="vr"); exibir_foto_piloto(v_rapida)
+                with ab_col:
+                    p_abandono = st.selectbox("1º Abandono:", lista_pilotos, key="ab"); exibir_foto_piloto(p_abandono)
+                with mu_col:
+                    m_ultrapassagens = st.selectbox("Mais Ultrapassagens:", lista_pilotos, key="mu"); exibir_foto_piloto(m_ultrapassagens)
+
+            elif tipo_sessao == "Corrida Sprint":
+                c1, c2 = st.columns(2)
+                with c1:
+                    p1 = st.selectbox("1º Colocado:", lista_pilotos, key="s1"); exibir_foto_piloto(p1)
+                    p2 = st.selectbox("2º Colocado:", lista_pilotos, key="s2"); exibir_foto_piloto(p2)
+                    p3 = st.selectbox("3º Colocado:", lista_pilotos, key="s3"); exibir_foto_piloto(p3)
+                    p4 = st.selectbox("4º Colocado:", lista_pilotos, key="s4"); exibir_foto_piloto(p4)
+                with c2:
+                    p5 = st.selectbox("5º Colocado:", lista_pilotos, key="s5"); exibir_foto_piloto(p5)
+                    p6 = st.selectbox("6º Colocado:", lista_pilotos, key="s6"); exibir_foto_piloto(p6)
+                    p7 = st.selectbox("7º Colocado:", lista_pilotos, key="s7"); exibir_foto_piloto(p7)
+                    p8 = st.selectbox("8º Colocado:", lista_pilotos, key="s8"); exibir_foto_piloto(p8)
+
+            # --- FORMULÁRIO FINAL APENAS PARA O BOTÃO DE ENVIO ---
+            with st.form("confirmar_palpite"):
+                st.write("---")
+                # Se 'emails_autorizados' não existir, ele vai dar erro. Certifique-se que esta lista existe no seu código.
+                email_confirmacao = st.text_input("Confirme seu e-mail cadastrado para validar o envio:", type="password")
+                
+                if st.form_submit_button("GRAVAR MEU PALPITE FINAL 🏎️"):
+                    # Verificação do e-mail (ajustado para usar dicionário ou variável global)
+                    email_correto = globals().get('emails_autorizados', {}).get(usuario_logado, "")
                     
-                    if guardar_dados(dados_palpite, ARQUIVO_DADOS):
-                        enviar_recibo_email(dados_palpite, email_confirmacao)
+                    if email_confirmacao.lower() == email_correto.lower():
+                        dados_palpite = {
+                            "Data_Envio": datetime.now(fuso_sp).strftime('%d/%m/%Y %H:%M:%S'),
+                            "GP": gp_selecionado,
+                            "Tipo": tipo_sessao,
+                            "Usuario": usuario_logado,
+                            "Equipe": equipe_usuario,
+                            "Pole": pole,
+                            "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
+                            "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
+                            "VoltaRapida": v_rapida,
+                            "PrimeiroAbandono": p_abandono,
+                            "MaisUltrapassagens": m_ultrapassagens
+                        }
                         
-                        # Efeito de F1
-                        st.toast(f'Palpite Gravado! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
-                        
-                        placeholder_animacao = st.empty()
-                        for _ in range(3):
-                            placeholder_animacao.markdown("<h1 style='text-align: center; font-size: 60px;'>🏎️ 🏁 🏎️ 🏁 🏎️</h1>", unsafe_allow_html=True)
-                            time.sleep(0.4)
-                            placeholder_animacao.empty()
-                            time.sleep(0.2)
-                        
-                        st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi gravado.")
+                        # Usei 'salvar_palpite_github' que é o nome da função no seu TXT original
+                        if salvar_palpite_github(ARQUIVO_DADOS, dados_palpite):
+                            st.toast(f'Palpite Gravado! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
+                            
+                            placeholder_animacao = st.empty()
+                            for _ in range(3):
+                                placeholder_animacao.markdown("<h1 style='text-align: center; font-size: 60px;'>🏎️ 🏁 🏎️ 🏁 🏎️</h1>", unsafe_allow_html=True)
+                                time.sleep(0.4)
+                                placeholder_animacao.empty()
+                                time.sleep(0.2)
+                            
+                            st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi gravado.")
+                        else:
+                            st.error("Ops! Tivemos um problema ao salvar. Tente novamente.")
                     else:
-                        st.error("Ops! Tivemos um problema com o servidor do GitHub. Tente novamente.")
-                else:
-                    st.error("E-mail incorreto! O palpite não foi gravado.")
+                        st.error("E-mail incorreto! O palpite não foi gravado.")
 
 # --- ÁREA: MEUS PALPITES ---
 elif menu == "Meus Palpites":
