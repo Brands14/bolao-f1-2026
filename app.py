@@ -306,24 +306,24 @@ st.sidebar.header("Navegação")
 menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
 # --- ÁREA: ENVIAR PALPITE ---
-elif menu == "🏎️ Fazer Palpite":
-        st.header("🏎️ Registrar seu Palpite")
+if menu == "Enviar Palpite":
+    usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
+    
+    if usuario_logado:
+        # Identifica a equipe automaticamente
+        equipe_usuario = next((equipe for equipe, membros in equipes.items() if usuario_logado in membros), "Sem Equipe")
         
-        # --- FILTRO DE GPS (APENAS FUTUROS) ---
-        data_hoje = datetime.now(pytz.timezone("America/Sao_Paulo")).date()
-        gps_disponiveis = [gp for gp in lista_gps if cronograma_gps[gp].date() >= data_hoje]
-        
-        if not gps_disponiveis:
-            gps_disponiveis = [lista_gps[-1]] # Garante que não fique vazio no fim do ano
+        st.markdown(f"### 🏎️ Piloto: **{usuario_logado}**")
+        st.caption(f"Equipe: {equipe_usuario}")
 
-        # --- CORREÇÃO DAS COLUNAS ---
-        col1, col2 = st.columns(2) # Criamos as colunas AQUI para evitar o NameError
-        
-        with col1:
-            gp_escolhido = st.selectbox("Selecione o Grande Prêmio:", gps_disponiveis)
-        
-        with col2:
-            sessao = st.selectbox("Sessão:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"])
+        col_gp, col_tipo = st.columns(2)
+        with col_gp:
+            gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps)
+        with col_tipo:
+            sessao_opcoes = ["Classificação Principal (Pole)", "Corrida Principal"]
+            if gp_selecionado in sprint_gps:
+                sessao_opcoes = ["Qualy Sprint (Pole)", "Corrida Sprint", "Classificação Principal (Pole)", "Corrida Principal"]
+            tipo_sessao = st.selectbox("Selecione a Sessão:", sessao_opcoes)
 
         st.divider()
         st.header(f"🏁 {gp_selecionado} - {tipo_sessao}")
