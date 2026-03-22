@@ -317,8 +317,18 @@ if menu == "Enviar Palpite":
         st.caption(f"Equipe: {equipe_usuario}")
 
         col_gp, col_tipo = st.columns(2)
-        with col_gp:
-            gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps)
+        with col1:
+            # Filtra a lista para mostrar apenas GPs de hoje em diante
+            data_hoje = datetime.now(pytz.timezone("America/Sao_Paulo")).date()
+            
+            # Criamos uma lista apenas com GPs que ainda não terminaram (data do GP >= hoje)
+            gps_disponiveis = [gp for gp in lista_gps if cronograma_gps[gp].date() >= data_hoje]
+            
+            # Se por algum motivo todos os GPs já passaram, mostra o último da lista para não travar
+            if not gps_disponiveis:
+                gps_disponiveis = [lista_gps[-1]]
+                
+            gp_escolhido = st.selectbox("Selecione o Grande Prêmio (Próximas Corridas):", gps_disponiveis)
         with col_tipo:
             sessao_opcoes = ["Classificação Principal (Pole)", "Corrida Principal"]
             if gp_selecionado in sprint_gps:
