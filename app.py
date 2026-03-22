@@ -306,7 +306,7 @@ st.sidebar.header("Navegação")
 menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
 # --- ÁREA: ENVIAR PALPITE ---
-if menu == "Enviar Palpite":
+    if menu == "Enviar Palpite":
         usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
         
         if usuario_logado:
@@ -315,28 +315,38 @@ if menu == "Enviar Palpite":
             
             st.header(f"🏎️ Palpite de {usuario_logado} ({equipe_usuario})")
 
-            # --- FILTRO DE SEGURANÇA: MOSTRAR APENAS GPS FUTUROS ---
-            data_hoje = datetime.now(pytz.timezone("America/Sao_Paulo")).date()
-            gps_disponiveis = [gp for gp in lista_gps if cronograma_gps[gp].date() >= data_hoje]
+            # --- FILTRO DE SEGURANÇA: MOSTRAR APENAS GPS FUTUROS OU DE HOJE ---
+            # Pegamos a data atual de Brasília
+            fuso_sp = pytz.timezone("America/Sao_Paulo")
+            hoje = datetime.now(fuso_sp).date()
             
+            # Filtro rigoroso: Só entra na lista se a data do cronograma for MAIOR ou IGUAL a hoje
+            gps_disponiveis = []
+            for gp in lista_gps:
+                data_gp = cronograma_gps[gp].date()
+                if data_gp >= hoje:
+                    gps_disponiveis.append(gp)
+            
+            # Se a lista ficar vazia (fim do campeonato), mostra apenas o último
             if not gps_disponiveis:
                 gps_disponiveis = [lista_gps[-1]]
 
+            # Layout de seleção
             col1, col2 = st.columns(2)
             with col1:
                 gp_escolhido = st.selectbox("Selecione o Grande Prêmio:", gps_disponiveis)
             with col2:
                 sessao = st.selectbox("Sessão:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"])
 
-            # Verificação de horário
-            agora = datetime.now(pytz.timezone("America/Sao_Paulo"))
-            limite = cronograma_gps[gp_escolhido].replace(tzinfo=pytz.timezone("America/Sao_Paulo"))
-            restante = limite - agora
+            # Verificação de horário (Bloqueio 30 min antes)
+            agora = datetime.now(fuso_sp)
+            limite = cronograma_gps[gp_escolhido].replace(tzinfo=fuso_sp)
+            restante = (limite - agora).total_seconds()
             
-            if restante.total_seconds() < 1800:
+            if restante < 1800: # 1800 segundos = 30 minutos
                 st.error(f"❌ Prazo encerrado! Os palpites para o {gp_escolhido} fecharam 30 minutos antes do início.")
             else:
-                st.info(f"⏳ Você tem até {limite.strftime('%d/%m %H:%M')} para enviar/alterar seu palpite.")
+                st.info(f"⏳ Você tem até {limite.strftime('%d/%m %H:%M')} para enviar seu palpite.")
                 
                 with st.form("form_palpite"):
                     st.subheader("Escolha seus pilotos (P1 ao P8):")
@@ -353,7 +363,7 @@ if menu == "Enviar Palpite":
                     p7 = c7.selectbox("7º Lugar", lista_pilotos, key="p7")
                     p8 = c8.selectbox("8º Lugar", lista_pilotos, key="p8")
                     
-                    v_rapida = st.selectbox("⏱️ Volta Rápida (Apenas para Corrida Principal):", ["N/A"] + lista_pilotos)
+                    v_rapida = st.selectbox("⏱️ Volta Rápida:", ["N/A"] + lista_pilotos)
                     
                     submit = st.form_submit_button("ENVIAR PALPITE")
                     
