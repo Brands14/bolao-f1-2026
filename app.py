@@ -411,8 +411,9 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
                             "MaisUltrapassagens": m_ultrapassagens
                         }
                         
-                        # Usei 'salvar_palpite_github' que é o nome da função no seu TXT original
-                        if salvar_palpite_github(ARQUIVO_DADOS, dados_palpite):
+     # Usei 'salvar_palpite_github' que é o nome da função no seu TXT original
+       
+    if salvar_palpite_github(ARQUIVO_DADOS, dados_palpite):
                             st.toast(f'Palpite Gravado! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
                             
                             placeholder_animacao = st.empty()
