@@ -376,8 +376,9 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
                         }
                         
                     
-                    if guardar_dados(dados_palpite, ARQUIVO_DADOS):
-                        enviar_recibo_email(dados_palpite, email_confirmacao)
+                    if salvar_palpite_github(ARQUIVO_DADOS, dados_palpite):
+                            st.success(f"✅ Palpite enviado com sucesso!")
+                            st.balloons()
                         
                         # Efeito de F1
                         st.toast(f'Palpite Gravado! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
