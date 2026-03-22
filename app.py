@@ -308,7 +308,8 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
 # --- ÁREA: ENVIAR PALPITE ---
 
     # --- ÁREA: ENVIAR PALPITE ---
-    if menu == "Enviar Palpite":
+
+     if menu == "Enviar Palpite":
         usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
         
         if usuario_logado:
