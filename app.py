@@ -306,6 +306,7 @@ st.sidebar.header("Navegação")
 menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
 # --- ÁREA: ENVIAR PALPITE ---
+# --- ÁREA: ENVIAR PALPITE ---
     if menu == "Enviar Palpite":
         usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
         
@@ -371,9 +372,9 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
                             "V_Rapida": v_rapida,
                             "Timestamp": agora.strftime("%d/%m/%Y %H:%M:%S")
                         }
-                        if salvar_palpite_github(ARQUIVO_DADOS, dados_palpite):
-                            st.success(f"✅ Palpite enviado!")
-                            st.balloons()
+                    
+                    if guardar_dados(dados_palpite, ARQUIVO_DADOS):
+                        enviar_recibo_email(dados_palpite, email_confirmacao)
                         
                         # Efeito de F1
                         st.toast(f'Palpite Gravado! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
