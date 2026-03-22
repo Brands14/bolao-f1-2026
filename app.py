@@ -315,23 +315,25 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
             
             st.header(f"🏎️ Palpite de {usuario_logado} ({equipe_usuario})")
 
-            # --- LÓGICA DE FILTRO DOS GPS (SÓ MOSTRA OS QUE NÃO PASSARAM) ---
+            # --- FILTRO DE SEGURANÇA: MOSTRAR APENAS GPS FUTUROS ---
             fuso_sp = pytz.timezone("America/Sao_Paulo")
             hoje = datetime.now(fuso_sp).date()
             
-            # Filtra a lista: se a data do GP for menor que hoje, ele não entra na lista
+            # Criamos a lista filtrada: só entram GPs cuja data no cronograma seja HOJE ou DEPOIS
             gps_disponiveis = [gp for gp in lista_gps if cronograma_gps[gp].date() >= hoje]
             
+            # Caso todos os GPs já tenham passado, mostramos apenas o último para evitar erro visual
             if not gps_disponiveis:
                 gps_disponiveis = [lista_gps[-1]]
 
             col1, col2 = st.columns(2)
             with col1:
+                # Agora o selectbox usa a lista FILTRADA (gps_disponiveis)
                 gp_escolhido = st.selectbox("Selecione o Grande Prêmio:", gps_disponiveis)
             with col2:
                 sessao = st.selectbox("Sessão:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"])
 
-            # Verificação de horário (Bloqueio 30 min antes)
+            # Verificação de horário (30 min antes)
             agora = datetime.now(fuso_sp)
             limite = cronograma_gps[gp_escolhido].replace(tzinfo=fuso_sp)
             restante = (limite - agora).total_seconds()
@@ -356,7 +358,7 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
                     p7 = c7.selectbox("7º Lugar", lista_pilotos, key="p7")
                     p8 = c8.selectbox("8º Lugar", lista_pilotos, key="p8")
                     
-                    v_rapida = st.selectbox("⏱️ Volta Rápida (Apenas para Corrida Principal):", ["N/A"] + lista_pilotos)
+                    v_rapida = st.selectbox("⏱️ Volta Rápida (Apenas Corrida Principal):", ["N/A"] + lista_pilotos)
                     
                     submit = st.form_submit_button("ENVIAR PALPITE")
                     
@@ -371,25 +373,10 @@ menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classif
                             "V_Rapida": v_rapida,
                             "Timestamp": agora.strftime("%d/%m/%Y %H:%M:%S")
                         }
-                    
-                    if guardar_dados(dados_palpite, ARQUIVO_DADOS):
-                        enviar_recibo_email(dados_palpite, email_confirmacao)
                         
-                        # Efeito de F1
-                        st.toast(f'Palpite Gravado! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
-                        
-                        placeholder_animacao = st.empty()
-                        for _ in range(3):
-                            placeholder_animacao.markdown("<h1 style='text-align: center; font-size: 60px;'>🏎️ 🏁 🏎️ 🏁 🏎️</h1>", unsafe_allow_html=True)
-                            time.sleep(0.4)
-                            placeholder_animacao.empty()
-                            time.sleep(0.2)
-                        
-                        st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi gravado.")
-                    else:
-                        st.error("Ops! Tivemos um problema com o servidor do GitHub. Tente novamente.")
-                else:
-                    st.error("E-mail incorreto! O palpite não foi gravado.")
+                        if salvar_palpite_github(ARQUIVO_DADOS, dados_palpite):
+                            st.success(f"✅ Palpite enviado com sucesso!")
+                            st.balloons()
 
 # --- ÁREA: MEUS PALPITES ---
 elif menu == "Meus Palpites":
