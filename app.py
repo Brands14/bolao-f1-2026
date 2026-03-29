@@ -233,27 +233,26 @@ def enviar_recibo_email(dados, email_destino):
     msg.attach(MIMEText(corpo, 'plain'))
     
     try:
-        # Mudança Estratégica: Usamos SMTP normal mas com uma conexão persistente
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20)
-        server.ehlo() 
-        server.starttls() # Criptografia
-        server.ehlo()
+        # Tentativa 1: Porta 587 (Padrão)
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
+        server.starttls()
         server.login(remetente, SENHA_EMAIL)
         server.send_message(msg)
         server.quit()
         return True
-    except Exception as e:
-        print(f"ERRO DE EMAIL NO LOG: {e}")
-        # Se falhar, tentamos a porta 465 como última instância no mesmo bloco
+    except Exception:
         try:
-            server_ssl = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20)
+            # Tentativa 2: Porta 465 (SSL direto) - Mais chance de passar no Render
+            server_ssl = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=30)
             server_ssl.login(remetente, SENHA_EMAIL)
             server_ssl.send_message(msg)
             server_ssl.quit()
             return True
-        except Exception as e2:
-            st.error(f"O servidor de e-mail está inacessível no momento: {e2}")
-            return False
+        except Exception as e:
+            # Se ambos falharem, o Render realmente bloqueou a saída de e-mail
+            st.warning("⚠️ O palpite foi salvo no sistema, mas o e-mail de confirmação não pôde ser enviado devido a restrições do servidor.")
+            print(f"BLOQUEIO TOTAL DE REDE: {e}")
+            return True # Retornamos True para o usuário não achar que o palpite falhou
 
 # 4. Matemática das Sessões
 def check_ponto(palpite, gabarito, chave, valor_pontos):
