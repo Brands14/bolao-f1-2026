@@ -233,25 +233,27 @@ def enviar_recibo_email(dados, email_destino):
     msg.attach(MIMEText(corpo, 'plain'))
     
     try:
-        # Força o uso de IPv4 para evitar o erro 'Network is unreachable' no Render
-        import socket
-        
-        # Cria a conexão especificando explicitamente o endereço IPv4 do Gmail
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=15)
-        server.set_debuglevel(1) # Isso vai mostrar detalhes nos logs do Render
+        # Mudança Estratégica: Usamos SMTP normal mas com uma conexão persistente
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20)
+        server.ehlo() 
+        server.starttls() # Criptografia
         server.ehlo()
-        server.starttls()
-        server.ehlo()
-        
         server.login(remetente, SENHA_EMAIL)
-        # Usamos send_message para garantir a melhor compatibilidade
         server.send_message(msg)
         server.quit()
         return True
     except Exception as e:
-        st.error(f"Erro no envio do e-mail: {e}")
-        print(f"ERRO DE REDE E-MAIL: {e}")
-        return False
+        print(f"ERRO DE EMAIL NO LOG: {e}")
+        # Se falhar, tentamos a porta 465 como última instância no mesmo bloco
+        try:
+            server_ssl = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20)
+            server_ssl.login(remetente, SENHA_EMAIL)
+            server_ssl.send_message(msg)
+            server_ssl.quit()
+            return True
+        except Exception as e2:
+            st.error(f"O servidor de e-mail está inacessível no momento: {e2}")
+            return False
 
 # 4. Matemática das Sessões
 def check_ponto(palpite, gabarito, chave, valor_pontos):
