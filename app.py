@@ -232,18 +232,25 @@ def enviar_recibo_email(dados, email_destino):
     
     msg.attach(MIMEText(corpo, 'plain'))
     
-    try:
-        # Usando o contexto 'with' para garantir que a conexão feche e envie
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(remetente, SENHA_EMAIL)
-            # send_message é mais confiável que sendmail no Gmail
-            server.send_message(msg)
+   try:
+        # Força o uso de IPv4 para evitar o erro 'Network is unreachable' no Render
+        import socket
+        
+        # Cria a conexão especificando explicitamente o endereço IPv4 do Gmail
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=15)
+        server.set_debuglevel(1) # Isso vai mostrar detalhes nos logs do Render
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        
+        server.login(remetente, SENHA_EMAIL)
+        # Usamos send_message para garantir a melhor compatibilidade
+        server.send_message(msg)
+        server.quit()
         return True
     except Exception as e:
-        # ISSO VAI FAZER O ERRO APARECER NO LOG DO RENDER
         st.error(f"Erro no envio do e-mail: {e}")
-        print(f"DEBUG E-MAIL: {e}")
+        print(f"ERRO DE REDE E-MAIL: {e}")
         return False
 
 # 4. Matemática das Sessões
