@@ -232,7 +232,7 @@ def enviar_recibo_email(dados, email_destino):
     
     msg.attach(MIMEText(corpo, 'plain'))
     
-   try:
+        try:
         # Usando o contexto 'with' para garantir que a conexão feche e envie
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
