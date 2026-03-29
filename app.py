@@ -228,19 +228,19 @@ def enviar_recibo_email(dados, email_destino):
         corpo += f"1º Colocado: {dados.get('P1', '')}\n2º Colocado: {dados.get('P2', '')}\n3º Colocado: {dados.get('P3', '')}\n4º Colocado: {dados.get('P4', '')}\n"
         corpo += f"5º Colocado: {dados.get('P5', '')}\n6º Colocado: {dados.get('P6', '')}\n7º Colocado: {dados.get('P7', '')}\n8º Colocado: {dados.get('P8', '')}\n"
         
-    corpo += "\n\nEste é um e-mail automático. Em caso de dúvidas, procure a Direção de Prova."
+    corpo += "\n\nEste é um e-mail automático. Em caso de dúvidas, procure a Direção de Prova (Fabrício ou Rodolfo)."
+    
     msg.attach(MIMEText(corpo, 'plain'))
     
     try:
-        # Uso do smtplib.SMTP_SSL na porta 465 é mais estável no Render para evitar o Erro 101
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=15)
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
         server.login(remetente, SENHA_EMAIL)
-        server.send_message(msg)
+        server.sendmail(remetente, destinatarios, msg.as_string())
         server.quit()
         return True
     except Exception as e:
-        st.error(f"Erro no envio do e-mail: {e}")
-        print(f"ERRO DE REDE E-MAIL: {e}")
+        print(f"Erro ao enviar e-mail: {e}")
         return False
 
 # 4. Matemática das Sessões
