@@ -134,46 +134,39 @@ def ler_dados(arquivo):
     except urllib.error.HTTPError:
         return pd.DataFrame(), None
 
-def guardar_dados(dados, arquivo):
-    df_atual, sha = ler_dados(arquivo)
-    df_novo = pd.DataFrame([dados])
-
+def guardar_dados(novos_dados, nome_arquivo):
+    df_atual, sha = ler_dados(nome_arquivo)
+    df_novo = pd.DataFrame([novos_dados])
+    
     if not df_atual.empty:
-        if 'Usuario' in dados:
-            mascara = ~((df_atual['GP'] == dados['GP']) & 
-                        (df_atual['Tipo'] == dados['Tipo']) & 
-                        (df_atual['Usuario'] == dados['Usuario']))
-        else:
-            mascara = ~((df_atual['GP'] == dados['GP']) & 
-                        (df_atual['Tipo'] == dados['Tipo']))
-            
-        df_atual = df_atual[mascara]
         df_final = pd.concat([df_atual, df_novo], ignore_index=True)
     else:
         df_final = df_novo
 
-    csv_content = df_final.to_csv(index=False)
-    encoded_content = base64.b64encode(csv_content.encode('utf-8')).decode('utf-8')
-
-    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{arquivo}"
+    conteudo_csv = df_final.to_csv(index=False)
+    conteudo_b64 = base64.b64encode(conteudo_csv.encode()).decode()
+    
+    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{nome_arquivo}"
     payload = {
-        "message": f"Atualizando registro no banco: {arquivo}",
-        "content": encoded_content
+        "message": f"Novo palpite: {novos_dados['Usuario']}",
+        "content": conteudo_b64,
+        "sha": sha if sha else None
     }
-    if sha:
-        payload["sha"] = sha
-
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={
+    
+    # Adicionamos o 'User-Agent' aqui, que é o que o GitHub exige para não dar erro 403/400
+    headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
         "Content-Type": "application/json",
-        "Accept": "application/vnd.github.v3+json"
-    }, method="PUT")
-
+        "User-Agent": "BolaoF1-App"
+    }
+    
     try:
-        with urllib.request.urlopen(req) as response:
-            return response.status in [200, 201]
-    except urllib.error.HTTPError as e:
-        st.error(f"Erro na nuvem: {e}")
+        data = json.dumps(payload).encode()
+        req = urllib.request.Request(url, data=data, headers=headers, method='PUT')
+        with urllib.request.urlopen(req, timeout=10) as response:
+            return True
+    except Exception as e:
+        st.error(f"Erro técnico ao salvar: {e}")
         return False
 
 # Função auxiliar para deletar registro completo (reescrever arquivo sem a linha)
