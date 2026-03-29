@@ -232,18 +232,15 @@ def enviar_recibo_email(dados, email_destino):
     
     msg.attach(MIMEText(corpo, 'plain'))
     
-        try:
-        # Usando o contexto 'with' para garantir que a conexão feche e envie
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(remetente, SENHA_EMAIL)
-            # send_message é mais confiável que sendmail no Gmail
-            server.send_message(msg)
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(remetente, SENHA_EMAIL)
+        server.sendmail(remetente, destinatarios, msg.as_string())
+        server.quit()
         return True
     except Exception as e:
-        # ISSO VAI FAZER O ERRO APARECER NO LOG DO RENDER
-        st.error(f"Erro no envio do e-mail: {e}")
-        print(f"DEBUG E-MAIL: {e}")
+        print(f"Erro ao enviar e-mail: {e}")
         return False
 
 # 4. Matemática das Sessões
