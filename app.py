@@ -23,10 +23,16 @@ EMAIL_ADMIN = "palpitesf12026@gmail.com"
 
 # Puxa as chaves mestras do painel do Streamlit
 try:
-    GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-    SENHA_EMAIL = st.secrets["SENHA_EMAIL"]
+    # O Render usa os.environ / O Streamlit usa st.secrets
+    GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or st.secrets["GITHUB_TOKEN"]
+    SENHA_EMAIL = os.environ.get("SENHA_EMAIL") or st.secrets["SENHA_EMAIL"]
 except:
-    st.error("As chaves de segurança (GITHUB_TOKEN ou SENHA_EMAIL) não foram encontradas nas configurações do Streamlit.")
+    # Se não encontrar em nenhum dos dois, tenta pegar direto do ambiente (Render)
+    GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+    SENHA_EMAIL = os.environ.get("SENHA_EMAIL")
+
+if not GITHUB_TOKEN:
+    st.error("Erro: A variável GITHUB_TOKEN não foi encontrada.")
     st.stop()
 
 ARQUIVO_DADOS = "palpites_permanentes_2026.csv" 
