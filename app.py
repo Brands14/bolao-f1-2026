@@ -238,26 +238,27 @@ def enviar_recibo_email(dados, email_destino):
     msg.attach(MIMEText(corpo, 'plain'))
     
     try:
-        # Tentativa 1: Porta 587 (Padrão)
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
-        server.starttls()
+        # Mudança Estratégica: Usamos SMTP normal mas com uma conexão persistente
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20)
+        server.ehlo() 
+        server.starttls() # Criptografia
+        server.ehlo()
         server.login(remetente, SENHA_EMAIL)
         server.send_message(msg)
         server.quit()
         return True
-    except Exception:
+    except Exception as e:
+        print(f"ERRO DE EMAIL NO LOG: {e}")
+        # Se falhar, tentamos a porta 465 como última instância no mesmo bloco
         try:
-            # Tentativa 2: Porta 465 (SSL direto) - Mais chance de passar no Render
-            server_ssl = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=30)
+            server_ssl = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20)
             server_ssl.login(remetente, SENHA_EMAIL)
             server_ssl.send_message(msg)
             server_ssl.quit()
             return True
-        except Exception as e:
-            # Se ambos falharem, o Render realmente bloqueou a saída de e-mail
-            st.warning("⚠️ O palpite foi salvo no sistema, mas o e-mail de confirmação não pôde ser enviado devido a restrições do servidor.")
-            print(f"BLOQUEIO TOTAL DE REDE: {e}")
-            return True # Retornamos True para o usuário não achar que o palpite falhou
+        except Exception as e2:
+            st.error(f"O servidor de e-mail está inacessível no momento: {e2}")
+            return False
 
 # 4. Matemática das Sessões
 def check_ponto(palpite, gabarito, chave, valor_pontos):
@@ -533,7 +534,7 @@ elif menu == "Administrador":
             else:
                 st.info("Sem palpites.")
 
-       with tab2:
+        with tab2:
             st.header("🏆 Inserir Gabarito Oficial")
             col_gp_a, col_tipo_a = st.columns(2)
             with col_gp_a:
@@ -577,53 +578,6 @@ elif menu == "Administrador":
                     }
                     if guardar_dados(dados_g, ARQUIVO_GABARITOS):
                         st.success("Gabarito Salvo!")
-                        st.rerun()
-
-            # --- NOVA ÁREA: APAGAR GABARITO (FORA DO FORMULÁRIO) ---
-            st.divider()
-            st.subheader("🗑️ Corrigir Gabarito (Apagar)")
-            df_gabs_del, sha_gabs_del = ler_dados(ARQUIVO_GABARITOS)
-            
-            if not df_gabs_del.empty:
-                lista_para_apagar = df_gabs_del.apply(lambda x: f"{x['GP']} - {x['Tipo']}", axis=1).tolist()
-                gabarito_para_deletar = st.selectbox("Selecione o gabarito que deseja remover:", [""] + lista_para_apagar, key="del_gabarito_oficial")
-                
-                if st.button("⚠️ APAGAR GABARITO SELECIONADO", type="secondary"):
-                    if gabarito_para_deletar != "":
-                        gp_excluir = gabarito_para_deletar.split(" - ")[0]
-                        tipo_excluir = gabarito_para_deletar.split(" - ")[1]
-                        
-                        # Filtra para manter todos EXCETO o que você selecionou
-                        df_novo_gabarito = df_gabs_del[~((df_gabs_del['GP'] == gp_excluir) & (df_gabs_del['Tipo'] == tipo_excluir))]
-                        
-                        # Prepara o CSV para subir no GitHub
-                        csv_para_github = df_novo_gabarito.to_csv(index=False)
-                        b64_para_github = base64.b64encode(csv_para_github.encode()).decode()
-                        
-                        payload_del = {
-                            "message": f"Removendo Gabarito: {gp_excluir} {tipo_excluir}",
-                            "content": b64_para_github,
-                            "sha": sha_gabs_del
-                        }
-                        
-                        header_del = {
-                            "Authorization": f"token {GITHUB_TOKEN}",
-                            "Content-Type": "application/json",
-                            "User-Agent": "BolaoF1-App"
-                        }
-                        
-                        url_del = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{ARQUIVO_GABARITOS}"
-                        
-                        try:
-                            req_del = urllib.request.Request(url_del, data=json.dumps(payload_del).encode(), headers=header_del, method='PUT')
-                            with urllib.request.urlopen(req_del) as resp_del:
-                                st.success(f"Gabarito de {gp_excluir} removido! O GP já está disponível para palpites novamente.")
-                                time.sleep(1)
-                                st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao apagar: {e}")
-                    else:
-                        st.warning("Selecione um gabarito na lista acima.")
 
         with tab3:
             st.header("🗑️ Apagar Registros")
