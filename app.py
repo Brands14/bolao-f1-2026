@@ -533,7 +533,7 @@ elif menu == "Administrador":
             else:
                 st.info("Sem palpites.")
 
-        with tab2:
+       with tab2:
             st.header("🏆 Inserir Gabarito Oficial")
             col_gp_a, col_tipo_a = st.columns(2)
             with col_gp_a:
@@ -577,6 +577,53 @@ elif menu == "Administrador":
                     }
                     if guardar_dados(dados_g, ARQUIVO_GABARITOS):
                         st.success("Gabarito Salvo!")
+                        st.rerun()
+
+            # --- NOVA ÁREA: APAGAR GABARITO (FORA DO FORMULÁRIO) ---
+            st.divider()
+            st.subheader("🗑️ Corrigir Gabarito (Apagar)")
+            df_gabs_del, sha_gabs_del = ler_dados(ARQUIVO_GABARITOS)
+            
+            if not df_gabs_del.empty:
+                lista_para_apagar = df_gabs_del.apply(lambda x: f"{x['GP']} - {x['Tipo']}", axis=1).tolist()
+                gabarito_para_deletar = st.selectbox("Selecione o gabarito que deseja remover:", [""] + lista_para_apagar, key="del_gabarito_oficial")
+                
+                if st.button("⚠️ APAGAR GABARITO SELECIONADO", type="secondary"):
+                    if gabarito_para_deletar != "":
+                        gp_excluir = gabarito_para_deletar.split(" - ")[0]
+                        tipo_excluir = gabarito_para_deletar.split(" - ")[1]
+                        
+                        # Filtra para manter todos EXCETO o que você selecionou
+                        df_novo_gabarito = df_gabs_del[~((df_gabs_del['GP'] == gp_excluir) & (df_gabs_del['Tipo'] == tipo_excluir))]
+                        
+                        # Prepara o CSV para subir no GitHub
+                        csv_para_github = df_novo_gabarito.to_csv(index=False)
+                        b64_para_github = base64.b64encode(csv_para_github.encode()).decode()
+                        
+                        payload_del = {
+                            "message": f"Removendo Gabarito: {gp_excluir} {tipo_excluir}",
+                            "content": b64_para_github,
+                            "sha": sha_gabs_del
+                        }
+                        
+                        header_del = {
+                            "Authorization": f"token {GITHUB_TOKEN}",
+                            "Content-Type": "application/json",
+                            "User-Agent": "BolaoF1-App"
+                        }
+                        
+                        url_del = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{ARQUIVO_GABARITOS}"
+                        
+                        try:
+                            req_del = urllib.request.Request(url_del, data=json.dumps(payload_del).encode(), headers=header_del, method='PUT')
+                            with urllib.request.urlopen(req_del) as resp_del:
+                                st.success(f"Gabarito de {gp_excluir} removido! O GP já está disponível para palpites novamente.")
+                                time.sleep(1)
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao apagar: {e}")
+                    else:
+                        st.warning("Selecione um gabarito na lista acima.")
 
         with tab3:
             st.header("🗑️ Apagar Registros")
