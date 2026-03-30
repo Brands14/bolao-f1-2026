@@ -146,14 +146,19 @@ def guardar_dados(novos_dados, nome_arquivo):
     conteudo_csv = df_final.to_csv(index=False)
     conteudo_b64 = base64.b64encode(conteudo_csv.encode()).decode()
     
+    # --- AJUSTE AQUI: Identifica se é Palpite ou Gabarito para a mensagem de log ---
+    if "Usuario" in novos_dados:
+        msg_log = f"Novo palpite: {novos_dados['Usuario']}"
+    else:
+        msg_log = f"Novo Gabarito: {novos_dados.get('GP', 'Oficial')}"
+    
     url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{nome_arquivo}"
     payload = {
-        "message": f"Novo palpite: {novos_dados['Usuario']}",
+        "message": msg_log,
         "content": conteudo_b64,
         "sha": sha if sha else None
     }
     
-    # Adicionamos o 'User-Agent' aqui, que é o que o GitHub exige para não dar erro 403/400
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
         "Content-Type": "application/json",
@@ -163,7 +168,7 @@ def guardar_dados(novos_dados, nome_arquivo):
     try:
         data = json.dumps(payload).encode()
         req = urllib.request.Request(url, data=data, headers=headers, method='PUT')
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=15) as response:
             return True
     except Exception as e:
         st.error(f"Erro técnico ao salvar: {e}")
