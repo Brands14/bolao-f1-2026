@@ -479,13 +479,18 @@ elif menu == "Classificações":
         for index_p, row_p in df_palpites.iterrows():
             gp = row_p.get('GP', '')
             tipo = row_p.get('Tipo', '')
+            usuario = row_p['Usuario']
+            
+            # --- AJUSTE AQUI: Identifica a equipe ATUAL do usuário com base no código, não no CSV ---
+            equipe_atual = next((eq for eq, membros in equipes.items() if usuario in membros), "Sem Equipe")
             
             gabarito_match = df_gabaritos[(df_gabaritos['GP'] == gp) & (df_gabaritos['Tipo'] == tipo)]
             
             if not gabarito_match.empty:
                 gabarito_oficial = gabarito_match.iloc[-1]
                 pontos = calcular_pontos_sessao(row_p, gabarito_oficial)
-                resultados.append({"Usuario": row_p['Usuario'], "Equipe": row_p.get('Equipe', 'Sem Equipe'), "Pontos": pontos, "GP": gp})
+                # Usamos a 'equipe_atual' que acabamos de localizar no dicionário
+                resultados.append({"Usuario": usuario, "Equipe": equipe_atual, "Pontos": pontos, "GP": gp})
         
         if resultados:
             df_resultados = pd.DataFrame(resultados)
