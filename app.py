@@ -85,8 +85,8 @@ emails_autorizados = {
 
 equipes = {
     "Equipe 1º Fabrício e Fausto": ["Fabrício Abe", "Fausto Fleury"],
-    "Equipe 2º Myke e Luciano": ["Myke Ribeiro", "Luciano (Medalha)"],
-    "Equipe 3º César e Ronaldo": ["César Gaudie", "Ronaldo Fleury"],
+    "Equipe 2º Myke e César": ["Myke Ribeiro", "César Gaudie"],
+    "Equipe 3º Luciano e Ronaldo": ["Luciano (Medalha)", "Ronaldo Fleury"],
     "Equipe 4º Valério e Syllas": ["Valério Bimbato", "Syllas Araújo"],
     "Equipe 5º Frederico e Emilio": ["Frederico Gaudie", "Emilio Jacinto"],
     "Equipe 6º Fernanda e Henrique": ["Fernanda Fleury", "Henrique Junqueira"],
