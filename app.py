@@ -113,10 +113,10 @@ pilotos = [
 ]
 
 lista_gps = [
-    "Austrália", "China", "Japão", "Bahrein", "Arábia Saudita", "Miami", 
-    "Emília-Romanha", "Mônaco", "Canadá", "Espanha", "Áustria", "Reino Unido", 
-    "Bélgica", "Hungria", "Holanda", "Itália", "Azerbaijão", "Singapura", 
-    "EUA (Austin)", "México", "Brasil", "Las Vegas", "Catar", "Abu Dhabi"
+    "Austrália", "China", "Japão", "Miami", "Emília-Romanha", "Mônaco", 
+    "Canadá", "Espanha", "Áustria", "Reino Unido", "Bélgica", "Hungria", 
+    "Holanda", "Itália", "Azerbaijão", "Singapura", "EUA (Austin)", 
+    "México", "Brasil", "Las Vegas", "Catar", "Abu Dhabi"
 ]
 
 sprint_gps = ["China", "Miami", "Canadá", "Reino Unido", "Holanda", "Singapura"]
