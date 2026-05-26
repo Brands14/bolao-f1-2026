@@ -113,9 +113,9 @@ pilotos = [
 ]
 
 lista_gps = [
-    "Austrália", "China", "Japão", "Miami", "Emília-Romanha", "Mônaco", 
-    "Canadá", "Espanha", "Áustria", "Reino Unido", "Bélgica", "Hungria", 
-    "Holanda", "Itália", "Azerbaijão", "Singapura", "EUA (Austin)", 
+    "Austrália", "China", "Japão", "Miami", "Canadá", "Mônaco", 
+     "Espanha", "Áustria", "Reino Unido", "Bélgica", "Hungria", 
+    "Holanda", "Itália", "Madrid" , "Azerbaijão", "Singapura", "EUA (Austin)", 
     "México", "Brasil", "Las Vegas", "Catar", "Abu Dhabi"
 ]
 
