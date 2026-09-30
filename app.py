@@ -91,7 +91,7 @@ equipes = {
     "Equipe 5º Frederico e Emilio": ["Frederico Gaudie", "Emilio Jacinto"],
     "Equipe 6º Fernanda e Henrique": ["Fernanda Fleury", "Henrique Junqueira"],
     "Equipe 7º Jaime e Hilton": ["Jaime Gabriel", "Hilton Jacinto"],
-    "Equipe 8º Delvânia e Maikon": ["Delvânia Belo", "Maikon Miranda"],
+    "Equipe 8º Delvânia Belo e Maikon": ["Delvânia Belo", "Maikon Miranda"],
     "Equipe 9º Alaerte e Flávio": ["Alaerte Fleury", "Flávio Soares"],
     "Equipe 10º Rodolfo e George": ["Rodolfo Brandão", "George Fleury"]
 }
@@ -107,7 +107,7 @@ pilotos = [
     "Alex Albon", "Carlos Sainz",
     "Pierre Gasly", "Franco Colapinto",
     "Oliver Bearman", "Esteban Ocon",
-    "Liam Lawson", "Arvid Lindblad",
+    "Liam Lawson", "Yuki Tsunoda", "Arvid Lindblad",
     "Sergio Pérez", "Valtteri Bottas",
     "Nenhum / Outro"
 ]
@@ -523,7 +523,7 @@ elif menu == "Administrador":
     senha = st.sidebar.text_input("Senha de Diretor de Prova:", type="password")
     
     if senha == "fleury1475":
-        st.warning("⚠️️ MODO ADMINISTRADOR ATIVO (DADOS PERMANENTES)")
+        st.warning("⚠ MODO ADMINISTRADOR ATIVO (DADOS PERMANENTES)")
         
         tab1, tab2, tab3, tab4 = st.tabs(["Auditoria de Palpites", "Gabaritos Oficiais", "Consultar Gabaritos Salvos", "Limpeza de Dados"])
         
@@ -586,7 +586,7 @@ elif menu == "Administrador":
 
             # --- APAGAR GABARITO (FORA DO FORMULÁRIO) ---
             st.divider()
-            st.subheader("🗑️️ Corrigir Gabarito (Apagar)")
+            st.subheader("🗑 Corrigir Gabarito (Apagar)")
             df_gabs_del, sha_gabs_del = ler_dados(ARQUIVO_GABARITOS)
             
             if not df_gabs_del.empty:
