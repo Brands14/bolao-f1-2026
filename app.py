@@ -98,7 +98,7 @@ equipes = {
 
 pilotos = [
     "", 
-    "Max Verstappen", "Isack Hadjar",
+    "Max Verstappen", "Yuki Tsunoda", "Isack Hadjar",
     "Lewis Hamilton", "Charles Leclerc",
     "George Russell", "Kimi Antonelli",
     "Lando Norris", "Oscar Piastri",
@@ -107,7 +107,7 @@ pilotos = [
     "Alex Albon", "Carlos Sainz",
     "Pierre Gasly", "Franco Colapinto",
     "Oliver Bearman", "Esteban Ocon",
-    "Liam Lawson", "Yuki Tsunoda", "Arvid Lindblad",
+    "Liam Lawson", "Arvid Lindblad",
     "Sergio Pérez", "Valtteri Bottas",
     "Nenhum / Outro"
 ]
