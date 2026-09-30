@@ -112,11 +112,13 @@ pilotos = [
     "Nenhum / Outro"
 ]
 
+# CALENDÁRIO COM BAHREIN (MALÁSIA / SEPANG) ENTRE AZERBAIJAO E SINGAPURA
 lista_gps = [
     "Austrália", "China", "Japão", "Miami", "Canadá", "Mônaco", 
-     "Espanha", "Áustria", "Reino Unido", "Bélgica", "Hungria", 
-    "Holanda", "Itália", "Madrid" , "Azerbaijão", "Singapura", "EUA (Austin)", 
-    "México", "Brasil", "Las Vegas", "Catar", "Abu Dhabi"
+    "Espanha", "Áustria", "Reino Unido", "Bélgica", "Hungria", 
+    "Holanda", "Itália", "Madrid", "Azerbaijão", 
+    "Bahrein (Malásia / Sepang)", 
+    "Singapura", "EUA (Austin)", "México", "Brasil", "Las Vegas", "Catar", "Abu Dhabi"
 ]
 
 sprint_gps = ["China", "Miami", "Canadá", "Reino Unido", "Holanda", "Singapura"]
@@ -238,10 +240,9 @@ def enviar_recibo_email(dados, email_destino):
     msg.attach(MIMEText(corpo, 'plain'))
     
     try:
-        # Mudança Estratégica: Usamos SMTP normal mas com uma conexão persistente
         server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20)
         server.ehlo() 
-        server.starttls() # Criptografia
+        server.starttls()
         server.ehlo()
         server.login(remetente, SENHA_EMAIL)
         server.send_message(msg)
@@ -249,7 +250,6 @@ def enviar_recibo_email(dados, email_destino):
         return True
     except Exception as e:
         print(f"ERRO DE EMAIL NO LOG: {e}")
-        # Se falhar, tentamos a porta 465 como última instância no mesmo bloco
         try:
             server_ssl = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20)
             server_ssl.login(remetente, SENHA_EMAIL)
@@ -310,7 +310,6 @@ def calcular_pontos_sessao(palpite, gabarito):
         
     return pontos
 
-# --- COLOQUE ESTA FUNÇÃO AQUI (ANTES DO MENU) ---
 def exibir_foto_piloto(nome):
     if nome and nome != "" and nome != "Nenhum / Outro":
         nome_arquivo = nome.replace(" ", "%20") + ".png"
@@ -333,8 +332,6 @@ if menu == "Enviar Palpite":
 
         col_gp, col_tipo = st.columns(2)
         with col_gp:
-
-            # -----------------------------------------------------------------
             df_gabaritos, _ = ler_dados(ARQUIVO_GABARITOS)
 
             if not df_gabaritos.empty:
@@ -345,7 +342,6 @@ if menu == "Enviar Palpite":
             lista_gps_disponiveis = [gp for gp in lista_gps if gp not in gps_ja_realizados]
 
             gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps_disponiveis)
-            # -----------------------------------------------------------------
 
         with col_tipo:
             sessao_opcoes = ["Classificação Principal (Pole)", "Corrida Principal"]
@@ -480,15 +476,12 @@ elif menu == "Classificações":
             tipo = row_p.get('Tipo', '')
             usuario = row_p['Usuario']
             
-            # --- Identifica a equipe ATUAL do usuário com base no código, não no CSV ---
             equipe_atual = next((eq for eq, membros in equipes.items() if usuario in membros), "Sem Equipe")
-            
             gabarito_match = df_gabaritos[(df_gabaritos['GP'] == gp) & (df_gabaritos['Tipo'] == tipo)]
             
             if not gabarito_match.empty:
                 gabarito_oficial = gabarito_match.iloc[-1]
                 pontos = calcular_pontos_sessao(row_p, gabarito_oficial)
-                # Usamos a 'equipe_atual' que acabamos de localizar no dicionário
                 resultados.append({"Usuario": usuario, "Equipe": equipe_atual, "Pontos": pontos, "GP": gp})
         
         if resultados:
@@ -584,7 +577,6 @@ elif menu == "Administrador":
                         st.success("Gabarito Salvo!")
                         st.rerun()
 
-            # --- APAGAR GABARITO (FORA DO FORMULÁRIO) ---
             st.divider()
             st.subheader("🗑 Corrigir Gabarito (Apagar)")
             df_gabs_del, sha_gabs_del = ler_dados(ARQUIVO_GABARITOS)
@@ -598,10 +590,8 @@ elif menu == "Administrador":
                         gp_excluir = gabarito_para_deletar.split(" - ")[0]
                         tipo_excluir = gabarito_para_deletar.split(" - ")[1]
                         
-                        # Filtra para manter todos EXCETO o que você selecionou
                         df_novo_gabarito = df_gabs_del[~((df_gabs_del['GP'] == gp_excluir) & (df_gabs_del['Tipo'] == tipo_excluir))]
                         
-                        # Prepara o CSV para subir no GitHub
                         csv_para_github = df_novo_gabarito.to_csv(index=False)
                         b64_para_github = base64.b64encode(csv_para_github.encode()).decode()
                         
@@ -643,7 +633,6 @@ elif menu == "Administrador":
                     df_view_gab = df_view_gab[df_view_gab["GP"] == filtro_gp_gabarito]
                 
                 if not df_view_gab.empty:
-                    # Remove colunas inteiramente vazias para melhorar a visualização na tabela
                     df_view_gab = df_view_gab.dropna(how='all', axis=1)
                     st.dataframe(df_view_gab, use_container_width=True)
                 else:
