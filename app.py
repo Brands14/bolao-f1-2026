@@ -334,7 +334,6 @@ if menu == "Enviar Palpite":
         col_gp, col_tipo = st.columns(2)
         with col_gp:
 
-            # 🔥🔥🔥 ALTERAÇÃO QUE VOCÊ PEDIU — ÚNICO TRECHO MODIFICADO 🔥🔥🔥
             # -----------------------------------------------------------------
             df_gabaritos, _ = ler_dados(ARQUIVO_GABARITOS)
 
@@ -481,7 +480,7 @@ elif menu == "Classificações":
             tipo = row_p.get('Tipo', '')
             usuario = row_p['Usuario']
             
-            # --- AJUSTE AQUI: Identifica a equipe ATUAL do usuário com base no código, não no CSV ---
+            # --- Identifica a equipe ATUAL do usuário com base no código, não no CSV ---
             equipe_atual = next((eq for eq, membros in equipes.items() if usuario in membros), "Sem Equipe")
             
             gabarito_match = df_gabaritos[(df_gabaritos['GP'] == gp) & (df_gabaritos['Tipo'] == tipo)]
@@ -524,9 +523,9 @@ elif menu == "Administrador":
     senha = st.sidebar.text_input("Senha de Diretor de Prova:", type="password")
     
     if senha == "fleury1475":
-        st.warning("⚠️ MODO ADMINISTRADOR ATIVO (DADOS PERMANENTES)")
+        st.warning("⚠️️ MODO ADMINISTRADOR ATIVO (DADOS PERMANENTES)")
         
-        tab1, tab2, tab3 = st.tabs(["Auditoria de Palpites", "Gabaritos Oficiais", "Limpeza de Dados"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Auditoria de Palpites", "Gabaritos Oficiais", "Consultar Gabaritos Salvos", "Limpeza de Dados"])
         
         with tab1:
             st.subheader("🕵️‍♂️ Auditoria: Palpites da Turma")
@@ -585,9 +584,9 @@ elif menu == "Administrador":
                         st.success("Gabarito Salvo!")
                         st.rerun()
 
-            # --- NOVA ÁREA: APAGAR GABARITO (FORA DO FORMULÁRIO) ---
+            # --- APAGAR GABARITO (FORA DO FORMULÁRIO) ---
             st.divider()
-            st.subheader("🗑️ Corrigir Gabarito (Apagar)")
+            st.subheader("🗑️️ Corrigir Gabarito (Apagar)")
             df_gabs_del, sha_gabs_del = ler_dados(ARQUIVO_GABARITOS)
             
             if not df_gabs_del.empty:
@@ -632,7 +631,28 @@ elif menu == "Administrador":
                         st.warning("Selecione um gabarito na lista acima.")
 
         with tab3:
-            st.header("🗑️ Apagar Registros")
+            st.subheader("📋 Gabaritos Oficiais Salvos")
+            st.write("Consulte aqui o resultado de todas as sessões e GPs já registados no sistema.")
+            
+            df_gabs_consulta, _ = ler_dados(ARQUIVO_GABARITOS)
+            if not df_gabs_consulta.empty:
+                filtro_gp_gabarito = st.selectbox("Filtrar Gabaritos por GP:", ["Todos os GPs"] + lista_gps, key="filtro_gab_view")
+                
+                df_view_gab = df_gabs_consulta.copy()
+                if filtro_gp_gabarito != "Todos os GPs":
+                    df_view_gab = df_view_gab[df_view_gab["GP"] == filtro_gp_gabarito]
+                
+                if not df_view_gab.empty:
+                    # Remove colunas inteiramente vazias para melhorar a visualização na tabela
+                    df_view_gab = df_view_gab.dropna(how='all', axis=1)
+                    st.dataframe(df_view_gab, use_container_width=True)
+                else:
+                    st.info(f"Nenhum gabarito registado para o GP {filtro_gp_gabarito}.")
+            else:
+                st.info("Nenhum gabarito registado no banco de dados até ao momento.")
+
+        with tab4:
+            st.header("🗑️ Apagar Registros de Palpites")
             df_limpeza, _ = ler_dados(ARQUIVO_DADOS)
             if not df_limpeza.empty:
                 col_del_gp, col_del_sessao = st.columns(2)
