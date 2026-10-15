@@ -58,7 +58,7 @@ st.markdown(f"""
     .hero-container {{
         position: relative;
         width: 100%;
-        height: 260px;
+        height: 380px;
         border-radius: 20px;
         overflow: hidden;
         margin-bottom: 25px;
@@ -77,7 +77,7 @@ st.markdown(f"""
         z-index: 0;
         transform: translate(-50%, -50%);
         object-fit: cover;
-        filter: brightness(0.45) contrast(1.1);
+        filter: brightness(0.85) contrast(1.1);
     }}
     .hero-overlay {{
         position: relative;
