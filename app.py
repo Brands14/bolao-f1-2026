@@ -321,7 +321,6 @@ def exibir_foto_piloto(nome):
         url_foto = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/{nome_arquivo}"
         st.image(url_foto, width=80)
 
-# Função auxiliar para pegar index do piloto com segurança
 def index_piloto(val):
     val_str = str(val).strip() if pd.notna(val) else ""
     if val_str in pilotos:
@@ -558,7 +557,7 @@ elif menu == "Administrador":
                 st.info("Sem palpites.")
 
         with tab2:
-            st.header("🏆 Inserir Gabarito Oficial")
+            st.header("🏆 Inserir / Modificar Gabarito Oficial")
             col_gp_a, col_tipo_a = st.columns(2)
             with col_gp_a:
                 gp_admin = st.selectbox("GP do Gabarito:", lista_gps, key="gp_adm")
@@ -567,29 +566,55 @@ elif menu == "Administrador":
             with col_tipo_a:
                 tipo_admin = st.selectbox("Sessão do Gabarito:", opcoes_admin, key="tipo_adm")
             
+            # BUSCA GABARITO EXISTENTE
+            df_gabs_exist, _ = ler_dados(ARQUIVO_GABARITOS)
+            gab_existente = {}
+            if not df_gabs_exist.empty:
+                match_gab = df_gabs_exist[
+                    (df_gabs_exist['GP'] == gp_admin) & 
+                    (df_gabs_exist['Tipo'] == tipo_admin)
+                ]
+                if not match_gab.empty:
+                    gab_existente = match_gab.iloc[-1].to_dict()
+                    st.info("ℹ️ **Gabarito já cadastrado para esta sessão.** Os campos abaixo foram preenchidos com os dados atuais. Altere o piloto que sofreu a punição/ajuste e salve novamente.")
+
             with st.form("form_gabarito"):
                 pole = p1 = p2 = p3 = p4 = p5 = p6 = p7 = p8 = p9 = p10 = ""
                 volta_rapida = primeiro_abandono = mais_ultrapassagens = ""
 
                 if "Pole" in tipo_admin:
-                    pole = st.selectbox("Pole Position Oficial:", pilotos)
+                    pole = st.selectbox("Pole Position Oficial:", pilotos, index=index_piloto(gab_existente.get('Pole', '')))
                 elif "Corrida Principal" in tipo_admin:
                     c1, c2 = st.columns(2)
                     with c1:
-                        p1, p2, p3, p4, p5 = [st.selectbox(f"{i}º Colocado:", pilotos) for i in range(1, 6)]
+                        p1 = st.selectbox("1º Colocado:", pilotos, index=index_piloto(gab_existente.get('P1', '')))
+                        p2 = st.selectbox("2º Colocado:", pilotos, index=index_piloto(gab_existente.get('P2', '')))
+                        p3 = st.selectbox("3º Colocado:", pilotos, index=index_piloto(gab_existente.get('P3', '')))
+                        p4 = st.selectbox("4º Colocado:", pilotos, index=index_piloto(gab_existente.get('P4', '')))
+                        p5 = st.selectbox("5º Colocado:", pilotos, index=index_piloto(gab_existente.get('P5', '')))
                     with c2:
-                        p6, p7, p8, p9, p10 = [st.selectbox(f"{i}º Colocado:", pilotos) for i in range(6, 11)]
-                        volta_rapida = st.selectbox("Melhor Volta:", pilotos)
-                        primeiro_abandono = st.selectbox("1º Abandono:", pilotos)
-                        mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos)
+                        p6 = st.selectbox("6º Colocado:", pilotos, index=index_piloto(gab_existente.get('P6', '')))
+                        p7 = st.selectbox("7º Colocado:", pilotos, index=index_piloto(gab_existente.get('P7', '')))
+                        p8 = st.selectbox("8º Colocado:", pilotos, index=index_piloto(gab_existente.get('P8', '')))
+                        p9 = st.selectbox("9º Colocado:", pilotos, index=index_piloto(gab_existente.get('P9', '')))
+                        p10 = st.selectbox("10º Colocado:", pilotos, index=index_piloto(gab_existente.get('P10', '')))
+                        volta_rapida = st.selectbox("Melhor Volta:", pilotos, index=index_piloto(gab_existente.get('VoltaRapida', '')))
+                        primeiro_abandono = st.selectbox("1º Abandono:", pilotos, index=index_piloto(gab_existente.get('PrimeiroAbandono', '')))
+                        mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos, index=index_piloto(gab_existente.get('MaisUltrapassagens', '')))
                 elif "Corrida Sprint" in tipo_admin:
                     c1, c2 = st.columns(2)
                     with c1:
-                        p1, p2, p3, p4 = [st.selectbox(f"{i}º Colocado:", pilotos) for i in range(1, 5)]
+                        p1 = st.selectbox("1º Colocado:", pilotos, index=index_piloto(gab_existente.get('P1', '')))
+                        p2 = st.selectbox("2º Colocado:", pilotos, index=index_piloto(gab_existente.get('P2', '')))
+                        p3 = st.selectbox("3º Colocado:", pilotos, index=index_piloto(gab_existente.get('P3', '')))
+                        p4 = st.selectbox("4º Colocado:", pilotos, index=index_piloto(gab_existente.get('P4', '')))
                     with c2:
-                        p5, p6, p7, p8 = [st.selectbox(f"{i}º Colocado:", pilotos) for i in range(5, 9)]
+                        p5 = st.selectbox("5º Colocado:", pilotos, index=index_piloto(gab_existente.get('P5', '')))
+                        p6 = st.selectbox("6º Colocado:", pilotos, index=index_piloto(gab_existente.get('P6', '')))
+                        p7 = st.selectbox("7º Colocado:", pilotos, index=index_piloto(gab_existente.get('P7', '')))
+                        p8 = st.selectbox("8º Colocado:", pilotos, index=index_piloto(gab_existente.get('P8', '')))
                 
-                if st.form_submit_button("Salvar Gabarito Oficial 🏆"):
+                if st.form_submit_button("Salvar / Atualizar Gabarito Oficial 🏆"):
                     dados_g = {
                         "GP": gp_admin, "Tipo": tipo_admin,
                         "Pole": pole,
@@ -600,7 +625,8 @@ elif menu == "Administrador":
                         "MaisUltrapassagens": mais_ultrapassagens
                     }
                     if guardar_dados(dados_g, ARQUIVO_GABARITOS):
-                        st.success("Gabarito Salvo!")
+                        st.success("Gabarito Atualizado com Sucesso!")
+                        time.sleep(1)
                         st.rerun()
 
             st.divider()
