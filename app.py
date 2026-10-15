@@ -45,7 +45,6 @@ nome_para_url = nome_arquivo_logo.replace(" ", "%20")
 url_final_logo = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/{nome_para_url}"
 
 try:
-    # Mudamos de 'use_container_width' para 'use_column_width'
     st.image(url_final_logo, use_column_width=True)
 except Exception as e:
     st.title("🏁 Palpites F1 2026")
@@ -141,6 +140,22 @@ def guardar_dados(novos_dados, nome_arquivo):
     df_novo = pd.DataFrame([novos_dados])
     
     if not df_atual.empty:
+        # CORREÇÃO DE DUPLICAÇÃO: Se for palpite de usuário, remove versão anterior do mesmo GP + Tipo + Usuario
+        if "Usuario" in novos_dados:
+            condicao_existente = (
+                (df_atual['Usuario'] == novos_dados['Usuario']) & 
+                (df_atual['GP'] == novos_dados['GP']) & 
+                (df_atual['Tipo'] == novos_dados['Tipo'])
+            )
+            df_atual = df_atual[~condicao_existente]
+        # Se for gabarito oficial, remove versão anterior do mesmo GP + Tipo
+        else:
+            condicao_existente = (
+                (df_atual['GP'] == novos_dados['GP']) & 
+                (df_atual['Tipo'] == novos_dados['Tipo'])
+            )
+            df_atual = df_atual[~condicao_existente]
+
         df_final = pd.concat([df_atual, df_novo], ignore_index=True)
     else:
         df_final = df_novo
@@ -148,11 +163,10 @@ def guardar_dados(novos_dados, nome_arquivo):
     conteudo_csv = df_final.to_csv(index=False)
     conteudo_b64 = base64.b64encode(conteudo_csv.encode()).decode()
     
-    # --- AJUSTE AQUI: Identifica se é Palpite ou Gabarito para a mensagem de log ---
     if "Usuario" in novos_dados:
-        msg_log = f"Novo palpite: {novos_dados['Usuario']}"
+        msg_log = f"Atualizado palpite: {novos_dados['Usuario']} - {novos_dados['GP']} ({novos_dados['Tipo']})"
     else:
-        msg_log = f"Novo Gabarito: {novos_dados.get('GP', 'Oficial')}"
+        msg_log = f"Atualizado Gabarito: {novos_dados.get('GP', 'Oficial')} ({novos_dados.get('Tipo', '')})"
     
     url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{nome_arquivo}"
     payload = {
@@ -213,7 +227,7 @@ def enviar_recibo_email(dados, email_destino):
     corpo = f"""
     Olá {dados['Usuario']},
     
-    Seu palpite foi registrado com sucesso pelo VAR do nosso sistema!
+    Seu palpite foi registrado/atualizado com sucesso pelo VAR do nosso sistema!
     Abaixo está a cópia oficial do seu envio.
     
     --- DETALHES DO REGISTRO ---
@@ -427,7 +441,7 @@ if menu == "Enviar Palpite":
                             placeholder_animacao.empty()
                             time.sleep(0.2)
                         
-                        st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi gravado.")
+                        st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi atualizado com sucesso.")
                     else:
                         st.error("Ops! Tivemos um problema com o servidor do GitHub. Tente novamente.")
                 else:
@@ -453,7 +467,9 @@ elif menu == "Meus Palpites":
                     meus_dados = df_todos[df_todos['Usuario'] == usuario_consulta]
                     if not meus_dados.empty:
                         st.success("Cofre aberto com sucesso!")
-                        meus_dados_view = meus_dados.drop(columns=['Usuario', 'Equipe'])
+                        # Mantém apenas a última versão de cada palpite para exibição limpa
+                        meus_dados_ultimos = meus_dados.drop_duplicates(subset=['GP', 'Tipo'], keep='last')
+                        meus_dados_view = meus_dados_ultimos.drop(columns=['Usuario', 'Equipe'])
                         st.dataframe(meus_dados_view, use_container_width=True)
                     else:
                         st.warning("Você ainda não enviou nenhum palpite.")
@@ -470,8 +486,11 @@ elif menu == "Classificações":
     df_gabaritos, _ = ler_dados(ARQUIVO_GABARITOS)
     
     if not df_palpites.empty and not df_gabaritos.empty:
+        # PROTEÇÃO DE SEGURANÇA: Considera estritamente o ÚLTIMO palpite de cada participante por GP + Sessão
+        df_palpites_validos = df_palpites.drop_duplicates(subset=['Usuario', 'GP', 'Tipo'], keep='last')
+        
         resultados = []
-        for index_p, row_p in df_palpites.iterrows():
+        for index_p, row_p in df_palpites_validos.iterrows():
             gp = row_p.get('GP', '')
             tipo = row_p.get('Tipo', '')
             usuario = row_p['Usuario']
@@ -525,9 +544,11 @@ elif menu == "Administrador":
             filtro_gp_auditoria = st.selectbox("Filtrar Auditoria por GP:", ["Todos os GPs"] + lista_gps)
             df_auditoria, _ = ler_dados(ARQUIVO_DADOS)
             if not df_auditoria.empty:
+                # Na auditoria, mantemos apenas a última versão de cada palpite
+                df_auditoria_limpo = df_auditoria.drop_duplicates(subset=['Usuario', 'GP', 'Tipo'], keep='last')
                 if filtro_gp_auditoria != "Todos os GPs":
-                    df_auditoria = df_auditoria[df_auditoria["GP"] == filtro_gp_auditoria]
-                st.dataframe(df_auditoria, use_container_width=True)
+                    df_auditoria_limpo = df_auditoria_limpo[df_auditoria_limpo["GP"] == filtro_gp_auditoria]
+                st.dataframe(df_auditoria_limpo, use_container_width=True)
             else:
                 st.info("Sem palpites.")
 
