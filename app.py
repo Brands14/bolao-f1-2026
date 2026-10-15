@@ -13,14 +13,20 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# 1. Configurações Iniciais
-st.set_page_config(page_title="Palpites F1 2026", layout="wide")
+# 1. Configurações Iniciais da Página
+st.set_page_config(
+    page_title="Bolão F1 2026 — Premium Edition",
+    page_icon="🏎️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
+# 🚨 Configurações do Repositório do GitHub
 GITHUB_USER = "Brands14" 
 GITHUB_REPO = "bolao-f1-2026"
 EMAIL_ADMIN = "palpitesf12026@gmail.com"
 
-# Puxa as chaves mestras
+# Puxa as chaves de acesso
 try:
     GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or st.secrets["GITHUB_TOKEN"]
     SENHA_EMAIL = os.environ.get("SENHA_EMAIL") or st.secrets["SENHA_EMAIL"]
@@ -29,24 +35,113 @@ except:
     SENHA_EMAIL = os.environ.get("SENHA_EMAIL")
 
 if not GITHUB_TOKEN:
-    st.error("Erro: A variável GITHUB_TOKEN não foi encontrada.")
+    st.error("Erro Crítico: A variável GITHUB_TOKEN não foi encontrada nas configurações de ambiente.")
     st.stop()
 
 ARQUIVO_DADOS = "palpites_permanentes_2026.csv" 
 ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 ARQUIVO_HISTORICO = "historico_alteracoes_2026.csv"
 
-# --- LOGO ---
-nome_arquivo_logo = "WhatsApp Image 2026-02-24 at 16.12.18.png"
-nome_para_url = nome_arquivo_logo.replace(" ", "%20")
-url_final_logo = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/{nome_para_url}"
+# --- CSS CUSTOMIZADO (INSPIRADO NO DESIGN REACT / TAILWIND) ---
+st.markdown("""
+<style>
+    /* Estilização Geral F1 Dark */
+    .stApp {
+        background-color: #0E0E10;
+        color: #F3F4F6;
+    }
+    
+    /* Hero Container com Vídeo de Fundo */
+    .hero-container {
+        position: relative;
+        width: 100%;
+        height: 280px;
+        border-radius: 20px;
+        overflow: hidden;
+        margin-bottom: 25px;
+        border: 1px solid #252525;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .hero-video {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        min-width: 100%;
+        min-height: 100%;
+        width: auto;
+        height: auto;
+        z-index: 0;
+        transform: translate(-50%, -50%);
+        object-fit: cover;
+        filter: brightness(0.4) contrast(1.1);
+    }
+    .hero-overlay {
+        position: relative;
+        z-index: 1;
+        padding: 40px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        height: 100%;
+        background: linear-gradient(90deg, rgba(14,14,16,0.9) 0%, rgba(14,14,16,0.3) 100%);
+    }
+    .hero-title {
+        font-size: 2.8rem;
+        font-weight: 900;
+        letter-spacing: -1px;
+        color: #FFFFFF;
+        margin: 0;
+        text-transform: uppercase;
+    }
+    .hero-subtitle {
+        color: #E10600;
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-top: 5px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+    }
+    
+    /* Customização das Abas e Cards */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #151515;
+        padding: 8px;
+        border-radius: 14px;
+        border: 1px solid #252525;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 45px;
+        border-radius: 10px;
+        color: #9CA3AF;
+        font-weight: 600;
+        border: none;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #E10600 !important;
+        color: #FFFFFF !important;
+    }
+    
+    /* Ajustes em Inputs e Botões */
+    div[data-baseweb="select"] > div {
+        background-color: #151515 !important;
+        border-color: #252525 !important;
+        border-radius: 10px !important;
+        color: #FFFFFF !important;
+    }
+    .stButton > button {
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(225, 6, 0, 0.4);
+    }
+</style>
+""", unsafe_allow_html=True)
 
-try:
-    st.image(url_final_logo, use_column_width=True)
-except Exception as e:
-    st.title("🏁 Palpites F1 2026")
-    st.write(f"Aguardando carregamento da imagem...")
-
+# 2. Dados e Estruturas Base
 participantes = [
     "Alaerte Fleury", "César Gaudie", "Delvânia Belo", "Emilio Jacinto", 
     "Fabrício Abe", "Fausto Fleury", "Fernanda Fleury", "Flávio Soares", 
@@ -118,7 +213,7 @@ lista_gps = [
 sprint_gps = ["China", "Miami", "Canadá", "Reino Unido", "Holanda", "Singapura"]
 fuso_br = pytz.timezone('America/Sao_Paulo')
 
-# 2. Motor de Banco de Dados Permanente
+# 3. Motor de Dados GitHub API
 def ler_dados(arquivo):
     url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{arquivo}"
     req = urllib.request.Request(url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
@@ -137,7 +232,7 @@ def registrar_historico(usuario, gp, tipo, acao):
         "Usuario": usuario,
         "GP": gp,
         "Tipo": tipo,
-        "Mensagem": f"O palpiteiro {usuario} {acao} seu palpite para o GP de {gp} ({tipo}) às {agora_br.strftime('%H:%M:%S')} no dia {agora_br.strftime('%d/%m/%Y')}."
+        "Mensagem": f"O participante {usuario} {acao} seu palpite no GP de {gp} ({tipo}) às {agora_br.strftime('%H:%M:%S')} de {agora_br.strftime('%d/%m/%Y')}."
     }
     
     df_hist, sha_hist = ler_dados(ARQUIVO_HISTORICO)
@@ -195,7 +290,7 @@ def guardar_dados(novos_dados, nome_arquivo, eh_edicao_admin=False):
     
     if "Usuario" in novos_dados:
         msg_log = f"Atualizado palpite: {novos_dados['Usuario']} - {novos_dados['GP']} ({novos_dados['Tipo']})"
-        acao_log = "alterou (pelo Administrador)" if eh_edicao_admin else ("alterou" if eh_alteracao else "enviou")
+        acao_log = "alterou (pelo Admin)" if eh_edicao_admin else ("alterou" if eh_alteracao else "enviou")
         registrar_historico(novos_dados['Usuario'], novos_dados['GP'], novos_dados['Tipo'], acao_log)
     else:
         msg_log = f"Atualizado Gabarito: {novos_dados.get('GP', 'Oficial')} ({novos_dados.get('Tipo', '')})"
@@ -206,20 +301,18 @@ def guardar_dados(novos_dados, nome_arquivo, eh_edicao_admin=False):
         "content": conteudo_b64,
         "sha": sha if sha else None
     }
-    
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
         "Content-Type": "application/json",
         "User-Agent": "BolaoF1-App"
     }
-    
     try:
         data = json.dumps(payload).encode()
         req = urllib.request.Request(url, data=data, headers=headers, method='PUT')
         with urllib.request.urlopen(req, timeout=15) as response:
             return True
     except Exception as e:
-        st.error(f"Erro técnico ao salvar: {e}")
+        st.error(f"Erro ao salvar dados no GitHub: {e}")
         return False
 
 def deletar_registro_github(arquivo, mascara_filtro):
@@ -230,7 +323,7 @@ def deletar_registro_github(arquivo, mascara_filtro):
         encoded_content = base64.b64encode(csv_content.encode('utf-8')).decode('utf-8')
         url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{arquivo}"
         payload = {
-            "message": f"Removendo registro no banco: {arquivo}",
+            "message": f"Removendo registro: {arquivo}",
             "content": encoded_content,
             "sha": sha
         }
@@ -245,7 +338,6 @@ def deletar_registro_github(arquivo, mascara_filtro):
             return False
     return False
 
-# 3. Disparador de E-mails
 def enviar_recibo_email(dados, email_destino):
     remetente = EMAIL_ADMIN
     destinatarios = [remetente, email_destino]
@@ -258,17 +350,15 @@ def enviar_recibo_email(dados, email_destino):
     corpo = f"""
     Olá {dados['Usuario']},
     
-    Seu palpite foi registrado/atualizado com sucesso pelo VAR do nosso sistema!
-    Abaixo está a cópia oficial do seu envio.
+    Seu palpite foi registrado/atualizado com sucesso no Bolão F1 2026!
     
-    --- DETALHES DO REGISTRO ---
+    --- REGISTRO OFICIAL ---
     Grande Prêmio: {dados['GP']}
     Sessão: {dados['Tipo']}
-    Data e Hora Exata do Envio: {dados['Data_Envio']}
+    Data/Hora do Envio: {dados['Data_Envio']}
     
-    --- SEU PALPITE ---
+    --- DETALHES DO SEU PALPITE ---
     """
-    
     if "Pole" in dados['Tipo']:
         corpo += f"Pole Position: {dados.get('Pole', '')}\n"
     elif "Corrida Principal" == dados['Tipo']:
@@ -280,38 +370,24 @@ def enviar_recibo_email(dados, email_destino):
         corpo += f"1º Colocado: {dados.get('P1', '')}\n2º Colocado: {dados.get('P2', '')}\n3º Colocado: {dados.get('P3', '')}\n4º Colocado: {dados.get('P4', '')}\n"
         corpo += f"5º Colocado: {dados.get('P5', '')}\n6º Colocado: {dados.get('P6', '')}\n7º Colocado: {dados.get('P7', '')}\n8º Colocado: {dados.get('P8', '')}\n"
         
-    corpo += "\n\nEste é um e-mail automático. Em caso de dúvidas, procure a Direção de Prova (Fabrício ou Rodolfo)."
-    
+    corpo += "\n\nDireção de Prova — Bolão F1 2026"
     msg.attach(MIMEText(corpo, 'plain'))
     
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20)
-        server.ehlo() 
         server.starttls()
-        server.ehlo()
         server.login(remetente, SENHA_EMAIL)
         server.send_message(msg)
         server.quit()
         return True
-    except Exception as e:
-        print(f"ERRO DE EMAIL NO LOG: {e}")
-        try:
-            server_ssl = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=20)
-            server_ssl.login(remetente, SENHA_EMAIL)
-            server_ssl.send_message(msg)
-            server_ssl.quit()
-            return True
-        except Exception as e2:
-            st.error(f"O servidor de e-mail está inacessível no momento: {e2}")
-            return False
+    except:
+        return False
 
-# 4. Matemática das Sessões
+# 4. Cálculo da Pontuação
 def check_ponto(palpite, gabarito, chave, valor_pontos):
     val_p = str(palpite.get(chave, '')).strip()
     val_g = str(gabarito.get(chave, '')).strip()
-    if val_p and val_p == val_g:
-        return valor_pontos
-    return 0
+    return valor_pontos if (val_p and val_p == val_g) else 0
 
 def calcular_pontos_sessao(palpite, gabarito):
     pontos = 0
@@ -319,7 +395,6 @@ def calcular_pontos_sessao(palpite, gabarito):
     
     if "Classificação" in tipo or "Qualy Sprint" in tipo:
         pontos += check_ponto(palpite, gabarito, 'Pole', 100)
-        
     elif tipo == "Corrida Principal":
         pontos += check_ponto(palpite, gabarito, 'P1', 150)
         pontos += check_ponto(palpite, gabarito, 'P2', 125)
@@ -337,12 +412,10 @@ def calcular_pontos_sessao(palpite, gabarito):
         
         top10_p = [str(palpite.get(f'P{i}', '')).strip() for i in range(1, 11)]
         top10_g = [str(gabarito.get(f'P{i}', '')).strip() for i in range(1, 11)]
-        
         if all(top10_p) and all(top10_g):
             if top10_p == top10_g: pontos += 600
             elif top10_p[:5] == top10_g[:5]: pontos += 450
             elif top10_p[:3] == top10_g[:3]: pontos += 300
-            
     elif tipo == "Corrida Sprint":
         pontos += check_ponto(palpite, gabarito, 'P1', 80)
         pontos += check_ponto(palpite, gabarito, 'P2', 70)
@@ -363,12 +436,23 @@ def exibir_foto_piloto(nome):
 
 def index_piloto(val):
     val_str = str(val).strip() if pd.notna(val) else ""
-    if val_str in pilotos:
-        return pilotos.index(val_str)
-    return 0
+    return pilotos.index(val_str) if val_str in pilotos else 0
 
-# 5. Menu e Navegação
-st.sidebar.header("Navegação")
+# --- TELA DE BOAS-VINDAS / HERO SCREEN COM VÍDEO ---
+st.markdown("""
+<div class="hero-container">
+    <video autoplay loop muted playsinline class="hero-video">
+        <source src="https://assets.mixkit.co/videos/preview/mixkit-formula-one-cars-racing-on-a-track-40348-large.mp4" type="video/mp4">
+    </video>
+    <div class="hero-overlay">
+        <h1 class="hero-title">BOLÃO F1 2026</h1>
+        <div class="hero-subtitle">🏁 Campeonato Oficial de Palpites</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# 5. Navegação Lateral
+st.sidebar.markdown("## 🏎️ Navegação")
 menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
 # --- ÁREA: ENVIAR PALPITE ---
@@ -378,15 +462,13 @@ if menu == "Enviar Palpite":
     if usuario_logado:
         equipe_usuario = next((equipe for equipe, membros in equipes.items() if usuario_logado in membros), "Sem Equipe")
         
-        st.markdown(f"### 🏎️ Piloto: **{usuario_logado}**")
-        st.caption(f"Equipe: {equipe_usuario}")
+        st.markdown(f"### 🏎️ Piloto: **{usuario_logado}** | <span style='color:#E10600'>{equipe_usuario}</span>", unsafe_allow_html=True)
 
         col_gp, col_tipo = st.columns(2)
         with col_gp:
             df_gabaritos, _ = ler_dados(ARQUIVO_GABARITOS)
             gps_ja_realizados = df_gabaritos['GP'].unique().tolist() if not df_gabaritos.empty else []
             lista_gps_disponiveis = [gp for gp in lista_gps if gp not in gps_ja_realizados]
-
             gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps_disponiveis)
 
         with col_tipo:
@@ -395,10 +477,9 @@ if menu == "Enviar Palpite":
                 sessao_opcoes = ["Qualy Sprint (Pole)", "Corrida Sprint", "Classificação Principal (Pole)", "Corrida Principal"]
             tipo_sessao = st.selectbox("Selecione a Sessão:", sessao_opcoes)
 
-        # BUSCA DE PALPITE ANTERIOR
+        # Carrega palpite anterior se existir
         df_dados, _ = ler_dados(ARQUIVO_DADOS)
         palpite_existente = {}
-        
         if not df_dados.empty:
             match = df_dados[
                 (df_dados['Usuario'] == usuario_logado) & 
@@ -407,17 +488,16 @@ if menu == "Enviar Palpite":
             ]
             if not match.empty:
                 palpite_existente = match.iloc[-1].to_dict()
-                st.info("ℹ️ **Você já possui um palpite registrado para esta sessão.** Os campos abaixo foram preenchidos com suas escolhas anteriores. Ajuste o que desejar e grave novamente.")
+                st.info("ℹ️ **Você já enviou um palpite para esta sessão.** Os campos foram preenchidos com suas escolhas atuais. Altere o que quiser e grave novamente.")
 
         st.divider()
-        st.header(f"🏁 {gp_selecionado} - {tipo_sessao}")
+        st.header(f"🏁 {gp_selecionado} — {tipo_sessao}")
 
         pole = p1 = p2 = p3 = p4 = p5 = p6 = p7 = p8 = p9 = p10 = ""
         v_rapida = p_abandono = m_ultrapassagens = ""
 
         if "Pole" in tipo_sessao:
-            idx_pole = index_piloto(palpite_existente.get('Pole', ''))
-            pole = st.selectbox("Selecione o Pole Position:", pilotos, index=idx_pole, key="sel_pole")
+            pole = st.selectbox("Selecione o Pole Position:", pilotos, index=index_piloto(palpite_existente.get('Pole', '')), key="sel_pole")
             exibir_foto_piloto(pole)
 
         elif tipo_sessao == "Corrida Principal":
@@ -476,424 +556,251 @@ if menu == "Enviar Palpite":
                         "PrimeiroAbandono": p_abandono,
                         "MaisUltrapassagens": m_ultrapassagens
                     }
-                    
                     if guardar_dados(dados_palpite, ARQUIVO_DADOS):
                         enviar_recibo_email(dados_palpite, email_confirmacao)
-                        st.toast(f'Palpite Gravado! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
-                        
-                        placeholder_animacao = st.empty()
-                        for _ in range(3):
-                            placeholder_animacao.markdown("<h1 style='text-align: center; font-size: 60px;'>🏎️ 🏁 🏎️ 🏁 🏎️</h1>", unsafe_allow_html=True)
-                            time.sleep(0.4)
-                            placeholder_animacao.empty()
-                            time.sleep(0.2)
-                        
-                        st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi atualizado com sucesso.")
+                        st.toast(f'Palpite Registrado com Sucesso! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
+                        st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi gravado/atualizado.")
                     else:
-                        st.error("Ops! Tivemos um problema com o servidor do GitHub. Tente novamente.")
+                        st.error("Erro técnico ao conectar ao servidor. Tente novamente.")
                 else:
-                    st.error("E-mail incorreto! O palpite não foi gravado.")
+                    st.error("E-mail não confere com o cadastrado para este participante.")
 
 # --- ÁREA: MEUS PALPITES ---
 elif menu == "Meus Palpites":
     st.header("🕵️ Meu Histórico de Palpites")
-    st.write("Consulte aqui todos os palpites que você já enviou. Os dados agora são permanentes!")
-    
     usuario_consulta = st.selectbox("Selecione o seu nome:", [""] + participantes)
     
     if usuario_consulta:
         email_consulta = st.text_input("Digite o seu E-mail cadastrado para abrir o cofre:", type="password")
-        
         if st.button("Buscar Meus Palpites 🔍"):
-            email_correto = emails_autorizados.get(usuario_consulta, "").strip().lower()
-            email_digitado = email_consulta.strip().lower()
-            
-            if email_digitado == email_correto and email_correto != "":
+            if email_consulta.strip().lower() == emails_autorizados.get(usuario_consulta, "").strip().lower():
                 df_todos, _ = ler_dados(ARQUIVO_DADOS)
                 if not df_todos.empty:
                     meus_dados = df_todos[df_todos['Usuario'] == usuario_consulta]
                     if not meus_dados.empty:
-                        st.success("Cofre aberto com sucesso!")
+                        st.success("Histórico localizado!")
                         meus_dados_ultimos = meus_dados.drop_duplicates(subset=['GP', 'Tipo'], keep='last')
-                        meus_dados_view = meus_dados_ultimos.drop(columns=['Usuario', 'Equipe'])
-                        st.dataframe(meus_dados_view, use_container_width=True)
+                        st.dataframe(meus_dados_ultimos.drop(columns=['Usuario', 'Equipe']), use_container_width=True)
                     else:
-                        st.warning("Você ainda não enviou nenhum palpite.")
+                        st.warning("Nenhum palpite enviado ainda.")
                 else:
-                    st.info("Nenhum palpite registrado no banco permanente ainda.")
+                    st.info("Banco de dados vazio.")
             else:
-                st.error("🚫 Acesso Negado: O e-mail não confere.")
+                st.error("Acesso negado: E-mail incorreto.")
 
-# --- ÁREA: CLASSIFICACOES ---
+# --- ÁREA: CLASSIFICAÇÕES ---
 elif menu == "Classificações":
-    st.header("🏆 Classificações do Campeonato F1 2026")
-    
+    st.header("🏆 Classificação Geral do Campeonato")
     df_palpites, _ = ler_dados(ARQUIVO_DADOS)
     df_gabaritos, _ = ler_dados(ARQUIVO_GABARITOS)
     
     if not df_palpites.empty and not df_gabaritos.empty:
         df_palpites_validos = df_palpites.drop_duplicates(subset=['Usuario', 'GP', 'Tipo'], keep='last')
-        
         resultados = []
-        for index_p, row_p in df_palpites_validos.iterrows():
+        for _, row_p in df_palpites_validos.iterrows():
             gp = row_p.get('GP', '')
             tipo = row_p.get('Tipo', '')
             usuario = row_p['Usuario']
-            
             equipe_atual = next((eq for eq, membros in equipes.items() if usuario in membros), "Sem Equipe")
-            gabarito_match = df_gabaritos[(df_gabaritos['GP'] == gp) & (df_gabaritos['Tipo'] == tipo)]
             
+            gabarito_match = df_gabaritos[(df_gabaritos['GP'] == gp) & (df_gabaritos['Tipo'] == tipo)]
             if not gabarito_match.empty:
-                gabarito_oficial = gabarito_match.iloc[-1]
-                pontos = calcular_pontos_sessao(row_p, gabarito_oficial)
+                pontos = calcular_pontos_sessao(row_p, gabarito_match.iloc[-1])
                 resultados.append({"Usuario": usuario, "Equipe": equipe_atual, "Pontos": pontos, "GP": gp})
         
         if resultados:
-            df_resultados = pd.DataFrame(resultados)
-            st.markdown("### 🔍 Filtro de Resultados")
-            filtro_classificacao = st.selectbox("Selecione a visualização desejada:", ["Geral (Campeonato Completo)"] + lista_gps)
+            df_res = pd.DataFrame(resultados)
+            filtro_gp = st.selectbox("Visualizar Por GP:", ["Geral (Campeonato Completo)"] + lista_gps)
+            if filtro_gp != "Geral (Campeonato Completo)":
+                df_res = df_res[df_res["GP"] == filtro_gp]
             
-            if filtro_classificacao != "Geral (Campeonato Completo)":
-                df_resultados = df_resultados[df_resultados["GP"] == filtro_classificacao]
-                st.subheader(f"📊 Resultado Específico: GP de {filtro_classificacao}")
-            else:
-                st.subheader("📊 Classificação Geral do Campeonato")
-            
-            if not df_resultados.empty:
+            if not df_res.empty:
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown("**👤 Mundial de Pilotos**")
-                    ranking_geral = df_resultados.groupby('Usuario')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                    ranking_geral.index = range(1, len(ranking_geral) + 1)
-                    st.dataframe(ranking_geral, use_container_width=True)
-                    
+                    st.markdown("### 👤 Mundial de Pilotos")
+                    rk_pilotos = df_res.groupby('Usuario')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
+                    rk_pilotos.index = range(1, len(rk_pilotos) + 1)
+                    st.dataframe(rk_pilotos, use_container_width=True)
                 with col2:
-                    st.markdown("**🏎️ Mundial de Construtores**")
-                    ranking_equipas = df_resultados.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                    ranking_equipas.index = range(1, len(ranking_equipas) + 1)
-                    st.dataframe(ranking_equipas, use_container_width=True)
-            else:
-                st.warning("Ainda não há pontuações para este GP.")
+                    st.markdown("### 🏎️ Mundial de Construtores")
+                    rk_equipes = df_res.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
+                    rk_equipes.index = range(1, len(rk_equipes) + 1)
+                    st.dataframe(rk_equipes, use_container_width=True)
 
-# --- ÁREA: ADMINISTRADOR ---
+# --- ÁREA: ADMINISTRADOR (PAINEL MODULARIZADO) ---
 elif menu == "Administrador":
-    senha = st.sidebar.text_input("Senha de Diretor de Prova:", type="password")
+    senha = st.sidebar.text_input("Senha do Diretor de Prova:", type="password")
     
     if senha == "fleury1475":
-        st.warning("⚠ MODO ADMINISTRADOR ATIVO (DADOS PERMANENTES)")
+        st.warning("⚠ PAINEL DE CONTROLE ADMINISTRATIVO — ACESSO RESTRITO")
         
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "Auditoria & Edição de Palpites", 
-            "📜 Histórico de Alterações",
-            "Gabaritos Oficiais", 
-            "Consultar Gabaritos Salvos", 
-            "Limpeza de Dados"
+            "🛡️ Auditoria & Edição", 
+            "📜 Log Auditável",
+            "🚩 Gabarito & Pontuação", 
+            "📋 Gabaritos Salvos", 
+            "🗑️ Limpeza de Dados"
         ])
         
-        # --- TAB 1: AUDITORIA E EDIÇÃO DE PALPITES PELO ADMIN ---
+        # TAB 1: AUDITORIA E EDIÇÃO
         with tab1:
-            st.subheader("🕵️‍♂️ Auditoria e Edição Direta de Palpites")
-            st.caption("Consulte ou altere o palpite de qualquer participante para qualquer GP (mesmo os já finalizados).")
-            
-            df_auditoria, _ = ler_dados(ARQUIVO_DADOS)
-            
-            if not df_auditoria.empty:
-                df_auditoria_limpo = df_auditoria.drop_duplicates(subset=['Usuario', 'GP', 'Tipo'], keep='last')
-                
-                # Tabela de Consulta
-                filtro_gp_auditoria = st.selectbox("Filtrar Tabela da Auditoria por GP:", ["Todos os GPs"] + lista_gps, key="flt_aud")
-                df_view_aud = df_auditoria_limpo.copy()
-                if filtro_gp_auditoria != "Todos os GPs":
-                    df_view_aud = df_view_aud[df_view_aud["GP"] == filtro_gp_auditoria]
+            st.subheader("🛡️ Gerenciador Direto de Palpites")
+            df_aud, _ = ler_dados(ARQUIVO_DADOS)
+            if not df_aud.empty:
+                df_aud_limpo = df_aud.drop_duplicates(subset=['Usuario', 'GP', 'Tipo'], keep='last')
+                flt_gp_aud = st.selectbox("Filtrar Auditoria por GP:", ["Todos os GPs"] + lista_gps)
+                df_view_aud = df_aud_limpo if flt_gp_aud == "Todos os GPs" else df_aud_limpo[df_aud_limpo["GP"] == flt_gp_aud]
                 st.dataframe(df_view_aud, use_container_width=True)
                 
                 st.divider()
-                st.subheader("🛠️ Editar Palpite de um Participante")
+                st.subheader("🛠️ Editar Palpite de Participante")
+                c_usr, c_gp, c_ses = st.columns(3)
+                with c_usr: u_edit = st.selectbox("Participante:", [""] + participantes, key="adm_u")
+                with c_gp: g_edit = st.selectbox("GP:", lista_gps, key="adm_g")
+                with c_ses:
+                    opts_s = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"] if g_edit in sprint_gps else ["Classificação Principal (Pole)", "Corrida Principal"]
+                    s_edit = st.selectbox("Sessão:", opts_s, key="adm_s")
                 
-                col_edit_user, col_edit_gp, col_edit_sessao = st.columns(3)
-                with col_edit_user:
-                    user_edit = st.selectbox("Selecione o Participante:", [""] + participantes, key="user_edit_adm")
-                with col_edit_gp:
-                    gp_edit = st.selectbox("Selecione o GP:", lista_gps, key="gp_edit_adm")
-                with col_edit_sessao:
-                    opcoes_sessao_edit = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"] if gp_edit in sprint_gps else ["Classificação Principal (Pole)", "Corrida Principal"]
-                    sessao_edit = st.selectbox("Selecione a Sessão:", opcoes_sessao_edit, key="sessao_edit_adm")
-                
-                if user_edit != "":
-                    match_user_edit = df_auditoria_limpo[
-                        (df_auditoria_limpo['Usuario'] == user_edit) & 
-                        (df_auditoria_limpo['GP'] == gp_edit) & 
-                        (df_auditoria_limpo['Tipo'] == sessao_edit)
-                    ]
+                if u_edit != "":
+                    match_e = df_aud_limpo[(df_aud_limpo['Usuario'] == u_edit) & (df_aud_limpo['GP'] == g_edit) & (df_aud_limpo['Tipo'] == s_edit)]
+                    p_exist = match_e.iloc[-1].to_dict() if not match_e.empty else {}
+                    eq_u = next((eq for eq, me in equipes.items() if u_edit in me), "Sem Equipe")
                     
-                    palpite_adm_existente = {}
-                    if not match_user_edit.empty:
-                        palpite_adm_existente = match_user_edit.iloc[-1].to_dict()
-                        st.info(f"✏️ Editando palpite existente de **{user_edit}** para **GP {gp_edit} - {sessao_edit}**.")
-                    else:
-                        st.warning(f"⚠️ NENHUM palpite encontrado para **{user_edit}** no **GP {gp_edit} - {sessao_edit}**. O formulário abaixo criará um NOVO registro.")
-                    
-                    equipe_user_edit = next((eq for eq, membros in equipes.items() if user_edit in membros), "Sem Equipe")
-                    
-                    with st.form("form_edicao_admin"):
-                        st.markdown(f"#### Formutário de Ajuste: {user_edit}")
-                        
+                    with st.form("f_adm_edit"):
+                        st.markdown(f"**Modificando:** {u_edit} | {g_edit} ({s_edit})")
                         pole_e = p1_e = p2_e = p3_e = p4_e = p5_e = p6_e = p7_e = p8_e = p9_e = p10_e = ""
                         vr_e = ab_e = mu_e = ""
                         
-                        if "Pole" in sessao_edit:
-                            pole_e = st.selectbox("Pole Position:", pilotos, index=index_piloto(palpite_adm_existente.get('Pole', '')), key="pole_adm_e")
-                        elif sessao_edit == "Corrida Principal":
-                            c1_e, c2_e = st.columns(2)
-                            with c1_e:
-                                p1_e = st.selectbox("1º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P1', '')), key="p1_adm_e")
-                                p2_e = st.selectbox("2º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P2', '')), key="p2_adm_e")
-                                p3_e = st.selectbox("3º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P3', '')), key="p3_adm_e")
-                                p4_e = st.selectbox("4º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P4', '')), key="p4_adm_e")
-                                p5_e = st.selectbox("5º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P5', '')), key="p5_adm_e")
-                            with c2_e:
-                                p6_e = st.selectbox("6º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P6', '')), key="p6_adm_e")
-                                p7_e = st.selectbox("7º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P7', '')), key="p7_adm_e")
-                                p8_e = st.selectbox("8º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P8', '')), key="p8_adm_e")
-                                p9_e = st.selectbox("9º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P9', '')), key="p9_adm_e")
-                                p10_e = st.selectbox("10º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P10', '')), key="p10_adm_e")
-                            
-                            st.write("---")
+                        if "Pole" in s_edit:
+                            pole_e = st.selectbox("Pole Position:", pilotos, index=index_piloto(p_exist.get('Pole', '')))
+                        elif s_edit == "Corrida Principal":
+                            col1_e, col2_e = st.columns(2)
+                            with col1_e:
+                                p1_e = st.selectbox("1º Colocado:", pilotos, index=index_piloto(p_exist.get('P1', '')))
+                                p2_e = st.selectbox("2º Colocado:", pilotos, index=index_piloto(p_exist.get('P2', '')))
+                                p3_e = st.selectbox("3º Colocado:", pilotos, index=index_piloto(p_exist.get('P3', '')))
+                                p4_e = st.selectbox("4º Colocado:", pilotos, index=index_piloto(p_exist.get('P4', '')))
+                                p5_e = st.selectbox("5º Colocado:", pilotos, index=index_piloto(p_exist.get('P5', '')))
+                            with col2_e:
+                                p6_e = st.selectbox("6º Colocado:", pilotos, index=index_piloto(p_exist.get('P6', '')))
+                                p7_e = st.selectbox("7º Colocado:", pilotos, index=index_piloto(p_exist.get('P7', '')))
+                                p8_e = st.selectbox("8º Colocado:", pilotos, index=index_piloto(p_exist.get('P8', '')))
+                                p9_e = st.selectbox("9º Colocado:", pilotos, index=index_piloto(p_exist.get('P9', '')))
+                                p10_e = st.selectbox("10º Colocado:", pilotos, index=index_piloto(p_exist.get('P10', '')))
                             c3_e, c4_e, c5_e = st.columns(3)
-                            with c3_e:
-                                vr_e = st.selectbox("Melhor Volta:", pilotos, index=index_piloto(palpite_adm_existente.get('VoltaRapida', '')), key="vr_adm_e")
-                            with c4_e:
-                                ab_e = st.selectbox("1º Abandono:", pilotos, index=index_piloto(palpite_adm_existente.get('PrimeiroAbandono', '')), key="ab_adm_e")
-                            with c5_e:
-                                mu_e = st.selectbox("Mais Ultrapassagens:", pilotos, index=index_piloto(palpite_adm_existente.get('MaisUltrapassagens', '')), key="mu_adm_e")
-                                
-                        elif sessao_edit == "Corrida Sprint":
-                            c1_e, c2_e = st.columns(2)
-                            with c1_e:
-                                p1_e = st.selectbox("1º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P1', '')), key="s1_adm_e")
-                                p2_e = st.selectbox("2º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P2', '')), key="s2_adm_e")
-                                p3_e = st.selectbox("3º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P3', '')), key="s3_adm_e")
-                                p4_e = st.selectbox("4º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P4', '')), key="s4_adm_e")
-                            with c2_e:
-                                p5_e = st.selectbox("5º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P5', '')), key="s5_adm_e")
-                                p6_e = st.selectbox("6º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P6', '')), key="s6_adm_e")
-                                p7_e = st.selectbox("7º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P7', '')), key="s7_adm_e")
-                                p8_e = st.selectbox("8º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P8', '')), key="s8_adm_e")
-
-                        if st.form_submit_button("Atualizar Palpite do Participante 🛠️"):
-                            dados_editados = {
+                            with c3_e: vr_e = st.selectbox("Melhor Volta:", pilotos, index=index_piloto(p_exist.get('VoltaRapida', '')))
+                            with c4_e: ab_e = st.selectbox("1º Abandono:", pilotos, index=index_piloto(p_exist.get('PrimeiroAbandono', '')))
+                            with c5_e: mu_e = st.selectbox("Mais Ultrapassagens:", pilotos, index=index_piloto(p_exist.get('MaisUltrapassagens', '')))
+                        
+                        if st.form_submit_button("Salvar Alteração do Admin 🛠️"):
+                            dados_e = {
                                 "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S') + " (Admin)",
-                                "GP": gp_edit,
-                                "Tipo": sessao_edit,
-                                "Usuario": user_edit,
-                                "Equipe": equipe_user_edit,
-                                "Pole": pole_e,
-                                "P1": p1_e, "P2": p2_e, "P3": p3_e, "P4": p4_e, "P5": p5_e,
+                                "GP": g_edit, "Tipo": s_edit, "Usuario": u_edit, "Equipe": eq_u,
+                                "Pole": pole_e, "P1": p1_e, "P2": p2_e, "P3": p3_e, "P4": p4_e, "P5": p5_e,
                                 "P6": p6_e, "P7": p7_e, "P8": p8_e, "P9": p9_e, "P10": p10_e,
-                                "VoltaRapida": vr_e,
-                                "PrimeiroAbandono": ab_e,
-                                "MaisUltrapassagens": mu_e
+                                "VoltaRapida": vr_e, "PrimeiroAbandono": ab_e, "MaisUltrapassagens": mu_e
                             }
-                            if guardar_dados(dados_editados, ARQUIVO_DADOS, eh_edicao_admin=True):
-                                st.success(f"Palpite de {user_edit} para o GP de {gp_edit} foi alterado com sucesso pelo Administrador!")
+                            if guardar_dados(dados_e, ARQUIVO_DADOS, eh_edicao_admin=True):
+                                st.success(f"Palpite de {u_edit} atualizado com sucesso!")
                                 time.sleep(1)
                                 st.rerun()
-            else:
-                st.info("Nenhum palpite registrado no banco até o momento.")
 
-        # --- TAB 2: HISTÓRICO DE ALTERAÇÕES ---
+        # TAB 2: LOG AUDITÁVEL
         with tab2:
-            st.subheader("📜 Log Auditável de Envios e Alterações")
-            st.caption("Acompanhe o momento exato (Horário de Brasília) em que cada participante enviou ou modificou um palpite.")
-            
-            df_historico_log, _ = ler_dados(ARQUIVO_HISTORICO)
-            
-            if not df_historico_log.empty:
-                col_flt_h1, col_flt_h2 = st.columns(2)
-                with col_flt_h1:
-                    filtro_hist_user = st.selectbox("Filtrar Histórico por Participante:", ["Todos os Participantes"] + participantes, key="flt_hist_usr")
-                with col_flt_h2:
-                    filtro_hist_gp = st.selectbox("Filtrar Histórico por GP:", ["Todos os GPs"] + lista_gps, key="flt_hist_gp")
+            st.subheader("📜 Histórico Completo de Alterações e Acessos")
+            df_h, _ = ler_dados(ARQUIVO_HISTORICO)
+            if not df_h.empty:
+                c_f1, c_f2 = st.columns(2)
+                with c_f1: u_flt = st.selectbox("Filtrar por Participante:", ["Todos"] + participantes)
+                with c_f2: g_flt = st.selectbox("Filtrar por GP:", ["Todos"] + lista_gps)
                 
-                df_view_hist = df_historico_log.copy()
-                if filtro_hist_user != "Todos os Participantes":
-                    df_view_hist = df_view_hist[df_view_hist['Usuario'] == filtro_hist_user]
-                if filtro_hist_gp != "Todos os GPs":
-                    df_view_hist = df_view_hist[df_view_hist['GP'] == filtro_hist_gp]
+                df_vh = df_h.copy()
+                if u_flt != "Todos": df_vh = df_vh[df_vh['Usuario'] == u_flt]
+                if g_flt != "Todos": df_vh = df_vh[df_vh['GP'] == g_flt]
                 
-                if not df_view_hist.empty:
-                    # Inverte para mostrar os mais recentes no topo
-                    df_view_hist = df_view_hist.iloc[::-1]
-                    for idx, row_h in df_view_hist.iterrows():
+                if not df_vh.empty:
+                    for _, row_h in df_vh.iloc[::-1].iterrows():
                         st.markdown(f"⏱️ **`[{row_h.get('Data_Hora', '')}]`** — {row_h.get('Mensagem', '')}")
                 else:
-                    st.info("Nenhum registro encontrado para os filtros selecionados.")
+                    st.info("Nenhum evento registrado com esses filtros.")
             else:
-                st.info("Ainda não há registros no histórico de alterações.")
+                st.info("Histórico de alterações vazio.")
 
-        # --- TAB 3: GABARITOS OFICIAIS ---
+        # TAB 3: GABARITOS OFICIAIS
         with tab3:
-            st.header("🏆 Inserir / Modificar Gabarito Oficial")
-            col_gp_a, col_tipo_a = st.columns(2)
-            with col_gp_a:
-                gp_admin = st.selectbox("GP do Gabarito:", lista_gps, key="gp_adm")
-            opcoes_admin = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"] if gp_admin in sprint_gps else ["Classificação Principal (Pole)", "Corrida Principal"]
+            st.header("🚩 Homologar Resultado Oficial (Gabarito)")
+            col_ga, col_ta = st.columns(2)
+            with col_ga: gp_a = st.selectbox("GP do Gabarito:", lista_gps, key="g_a")
+            opts_a = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"] if gp_a in sprint_gps else ["Classificação Principal (Pole)", "Corrida Principal"]
+            with col_ta: tp_a = st.selectbox("Sessão:", opts_a, key="t_a")
             
-            with col_tipo_a:
-                tipo_admin = st.selectbox("Sessão do Gabarito:", opcoes_admin, key="tipo_adm")
+            df_ge, _ = ler_dados(ARQUIVO_GABARITOS)
+            m_g = df_ge[(df_ge['GP'] == gp_a) & (df_ge['Tipo'] == tp_a)] if not df_ge.empty else pd.DataFrame()
+            g_ex = m_g.iloc[-1].to_dict() if not m_g.empty else {}
             
-            df_gabs_exist, _ = ler_dados(ARQUIVO_GABARITOS)
-            gab_existente = {}
-            if not df_gabs_exist.empty:
-                match_gab = df_gabs_exist[
-                    (df_gabs_exist['GP'] == gp_admin) & 
-                    (df_gabs_exist['Tipo'] == tipo_admin)
-                ]
-                if not match_gab.empty:
-                    gab_existente = match_gab.iloc[-1].to_dict()
-                    st.info("ℹ️ **Gabarito já cadastrado para esta sessão.** Os campos abaixo foram preenchidos com os dados atuais. Altere o piloto que sofreu a punição/ajuste e salve novamente.")
-
-            with st.form("form_gabarito"):
-                pole = p1 = p2 = p3 = p4 = p5 = p6 = p7 = p8 = p9 = p10 = ""
-                volta_rapida = primeiro_abandono = mais_ultrapassagens = ""
-
-                if "Pole" in tipo_admin:
-                    pole = st.selectbox("Pole Position Oficial:", pilotos, index=index_piloto(gab_existente.get('Pole', '')))
-                elif "Corrida Principal" in tipo_admin:
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        p1 = st.selectbox("1º Colocado:", pilotos, index=index_piloto(gab_existente.get('P1', '')))
-                        p2 = st.selectbox("2º Colocado:", pilotos, index=index_piloto(gab_existente.get('P2', '')))
-                        p3 = st.selectbox("3º Colocado:", pilotos, index=index_piloto(gab_existente.get('P3', '')))
-                        p4 = st.selectbox("4º Colocado:", pilotos, index=index_piloto(gab_existente.get('P4', '')))
-                        p5 = st.selectbox("5º Colocado:", pilotos, index=index_piloto(gab_existente.get('P5', '')))
-                    with c2:
-                        p6 = st.selectbox("6º Colocado:", pilotos, index=index_piloto(gab_existente.get('P6', '')))
-                        p7 = st.selectbox("7º Colocado:", pilotos, index=index_piloto(gab_existente.get('P7', '')))
-                        p8 = st.selectbox("8º Colocado:", pilotos, index=index_piloto(gab_existente.get('P8', '')))
-                        p9 = st.selectbox("9º Colocado:", pilotos, index=index_piloto(gab_existente.get('P9', '')))
-                        p10 = st.selectbox("10º Colocado:", pilotos, index=index_piloto(gab_existente.get('P10', '')))
-                        volta_rapida = st.selectbox("Melhor Volta:", pilotos, index=index_piloto(gab_existente.get('VoltaRapida', '')))
-                        primeiro_abandono = st.selectbox("1º Abandono:", pilotos, index=index_piloto(gab_existente.get('PrimeiroAbandono', '')))
-                        mais_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos, index=index_piloto(gab_existente.get('MaisUltrapassagens', '')))
-                elif "Corrida Sprint" in tipo_admin:
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        p1 = st.selectbox("1º Colocado:", pilotos, index=index_piloto(gab_existente.get('P1', '')))
-                        p2 = st.selectbox("2º Colocado:", pilotos, index=index_piloto(gab_existente.get('P2', '')))
-                        p3 = st.selectbox("3º Colocado:", pilotos, index=index_piloto(gab_existente.get('P3', '')))
-                        p4 = st.selectbox("4º Colocado:", pilotos, index=index_piloto(gab_existente.get('P4', '')))
-                    with c2:
-                        p5 = st.selectbox("5º Colocado:", pilotos, index=index_piloto(gab_existente.get('P5', '')))
-                        p6 = st.selectbox("6º Colocado:", pilotos, index=index_piloto(gab_existente.get('P6', '')))
-                        p7 = st.selectbox("7º Colocado:", pilotos, index=index_piloto(gab_existente.get('P7', '')))
-                        p8 = st.selectbox("8º Colocado:", pilotos, index=index_piloto(gab_existente.get('P8', '')))
+            with st.form("form_gabarito_oficial"):
+                pole_g = p1_g = p2_g = p3_g = p4_g = p5_g = p6_g = p7_g = p8_g = p9_g = p10_g = ""
+                vr_g = ab_g = mu_g = ""
+                
+                if "Pole" in tp_a:
+                    pole_g = st.selectbox("Pole Position Oficial:", pilotos, index=index_piloto(g_ex.get('Pole', '')))
+                elif "Corrida Principal" in tp_a:
+                    c1_g, c2_g = st.columns(2)
+                    with c1_g:
+                        p1_g = st.selectbox("1º Colocado:", pilotos, index=index_piloto(g_ex.get('P1', '')))
+                        p2_g = st.selectbox("2º Colocado:", pilotos, index=index_piloto(g_ex.get('P2', '')))
+                        p3_g = st.selectbox("3º Colocado:", pilotos, index=index_piloto(g_ex.get('P3', '')))
+                        p4_g = st.selectbox("4º Colocado:", pilotos, index=index_piloto(g_ex.get('P4', '')))
+                        p5_g = st.selectbox("5º Colocado:", pilotos, index=index_piloto(g_ex.get('P5', '')))
+                    with c2_g:
+                        p6_g = st.selectbox("6º Colocado:", pilotos, index=index_piloto(g_ex.get('P6', '')))
+                        p7_g = st.selectbox("7º Colocado:", pilotos, index=index_piloto(g_ex.get('P7', '')))
+                        p8_g = st.selectbox("8º Colocado:", pilotos, index=index_piloto(g_ex.get('P8', '')))
+                        p9_g = st.selectbox("9º Colocado:", pilotos, index=index_piloto(g_ex.get('P9', '')))
+                        p10_g = st.selectbox("10º Colocado:", pilotos, index=index_piloto(g_ex.get('P10', '')))
+                    c3_g, c4_g, c5_g = st.columns(3)
+                    with c3_g: vr_g = st.selectbox("Melhor Volta:", pilotos, index=index_piloto(g_ex.get('VoltaRapida', '')))
+                    with c4_g: ab_g = st.selectbox("1º Abandono:", pilotos, index=index_piloto(g_ex.get('PrimeiroAbandono', '')))
+                    with c5_g: mu_g = st.selectbox("Mais Ultrapassagens:", pilotos, index=index_piloto(g_ex.get('MaisUltrapassagens', '')))
                 
                 if st.form_submit_button("Salvar / Atualizar Gabarito Oficial 🏆"):
                     dados_g = {
-                        "GP": gp_admin, "Tipo": tipo_admin,
-                        "Pole": pole,
-                        "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
-                        "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
-                        "VoltaRapida": volta_rapida,
-                        "PrimeiroAbandono": primeiro_abandono,
-                        "MaisUltrapassagens": mais_ultrapassagens
+                        "GP": gp_a, "Tipo": tp_a, "Pole": pole_g,
+                        "P1": p1_g, "P2": p2_g, "P3": p3_g, "P4": p4_g, "P5": p5_g,
+                        "P6": p6_g, "P7": p7_g, "P8": p8_g, "P9": p9_g, "P10": p10_g,
+                        "VoltaRapida": vr_g, "PrimeiroAbandono": ab_g, "MaisUltrapassagens": mu_g
                     }
                     if guardar_dados(dados_g, ARQUIVO_GABARITOS):
-                        st.success("Gabarito Atualizado com Sucesso!")
+                        st.success("Gabarito Oficial Homologado!")
                         time.sleep(1)
                         st.rerun()
 
-            st.divider()
-            st.subheader("🗑 Corrigir Gabarito (Apagar)")
-            df_gabs_del, sha_gabs_del = ler_dados(ARQUIVO_GABARITOS)
-            
-            if not df_gabs_del.empty:
-                lista_para_apagar = df_gabs_del.apply(lambda x: f"{x['GP']} - {x['Tipo']}", axis=1).tolist()
-                gabarito_para_deletar = st.selectbox("Selecione o gabarito que deseja remover:", [""] + lista_para_apagar, key="del_gabarito_oficial")
-                
-                if st.button("⚠️ APAGAR GABARITO SELECIONADO", type="secondary"):
-                    if gabarito_para_deletar != "":
-                        gp_excluir = gabarito_para_deletar.split(" - ")[0]
-                        tipo_excluir = gabarito_para_deletar.split(" - ")[1]
-                        
-                        df_novo_gabarito = df_gabs_del[~((df_gabs_del['GP'] == gp_excluir) & (df_gabs_del['Tipo'] == tipo_excluir))]
-                        
-                        csv_para_github = df_novo_gabarito.to_csv(index=False)
-                        b64_para_github = base64.b64encode(csv_para_github.encode()).decode()
-                        
-                        payload_del = {
-                            "message": f"Removendo Gabarito: {gp_excluir} {tipo_excluir}",
-                            "content": b64_para_github,
-                            "sha": sha_gabs_del
-                        }
-                        
-                        header_del = {
-                            "Authorization": f"token {GITHUB_TOKEN}",
-                            "Content-Type": "application/json",
-                            "User-Agent": "BolaoF1-App"
-                        }
-                        
-                        url_del = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{ARQUIVO_GABARITOS}"
-                        
-                        try:
-                            req_del = urllib.request.Request(url_del, data=json.dumps(payload_del).encode(), headers=header_del, method='PUT')
-                            with urllib.request.urlopen(req_del) as resp_del:
-                                st.success(f"Gabarito de {gp_excluir} removido! O GP já está disponível para palpites novamente.")
-                                time.sleep(1)
-                                st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao apagar: {e}")
-                    else:
-                        st.warning("Selecione um gabarito na lista acima.")
-
-        # --- TAB 4: GABARITOS SALVOS ---
+        # TAB 4: CONSULTAR GABARITOS
         with tab4:
-            st.subheader("📋 Gabaritos Oficiais Salvos")
-            st.write("Consulte aqui o resultado de todas as sessões e GPs já registados no sistema.")
-            
-            df_gabs_consulta, _ = ler_dados(ARQUIVO_GABARITOS)
-            if not df_gabs_consulta.empty:
-                filtro_gp_gabarito = st.selectbox("Filtrar Gabaritos por GP:", ["Todos os GPs"] + lista_gps, key="filtro_gab_view")
-                
-                df_view_gab = df_gabs_consulta.copy()
-                if filtro_gp_gabarito != "Todos os GPs":
-                    df_view_gab = df_view_gab[df_view_gab["GP"] == filtro_gp_gabarito]
-                
-                if not df_view_gab.empty:
-                    df_view_gab = df_view_gab.dropna(how='all', axis=1)
-                    st.dataframe(df_view_gab, use_container_width=True)
-                else:
-                    st.info(f"Nenhum gabarito registado para o GP {filtro_gp_gabarito}.")
+            st.subheader("📋 Gabaritos Homologados")
+            df_g_cons, _ = ler_dados(ARQUIVO_GABARITOS)
+            if not df_g_cons.empty:
+                st.dataframe(df_g_cons.dropna(how='all', axis=1), use_container_width=True)
             else:
-                st.info("Nenhum gabarito registado no banco de dados até ao momento.")
+                st.info("Nenhum gabarito cadastrado.")
 
-        # --- TAB 5: LIMPEZA DE DADOS ---
+        # TAB 5: LIMPEZA DE DADOS
         with tab5:
-            st.header("🗑️ Apagar Registros de Palpites")
-            df_limpeza, _ = ler_dados(ARQUIVO_DADOS)
-            if not df_limpeza.empty:
-                col_del_gp, col_del_sessao = st.columns(2)
-                with col_del_gp:
-                    gp_del = st.selectbox("GP para excluir:", lista_gps, key="del_gp")
-                with col_del_sessao:
-                    sessao_del = st.selectbox("Sessão para excluir:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"], key="del_sessao")
+            st.header("🗑️ Exclusão Pontual de Registros")
+            df_limp, _ = ler_dados(ARQUIVO_DADOS)
+            if not df_limp.empty:
+                c_del_gp, c_del_ses = st.columns(2)
+                with c_del_gp: gp_d = st.selectbox("GP:", lista_gps, key="gp_d")
+                with c_del_ses: ses_d = st.selectbox("Sessão:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"], key="ses_d")
                 
-                palpites_filtrados = df_limpeza[(df_limpeza['GP'] == gp_del) & (df_limpeza['Tipo'] == sessao_del)]
-                
-                if not palpites_filtrados.empty:
-                    user_del = st.selectbox("Selecione o usuário para APAGAR o palpite:", [""] + sorted(palpites_filtrados['Usuario'].tolist()), key="del_user")
-                    
-                    if user_del != "":
-                        if st.button(f"CONFIRMAR EXCLUSÃO DE {user_del}", type="primary"):
-                            mascara = ~((df_limpeza['GP'] == gp_del) & 
-                                        (df_limpeza['Tipo'] == sessao_del) & 
-                                        (df_limpeza['Usuario'] == user_del))
-                            if deletar_registro_github(ARQUIVO_DADOS, mascara):
-                                st.success("Palpite removido com sucesso!")
-                                st.rerun()
-                else:
-                    st.info("Nenhum palpite encontrado para este GP/Sessão.")
+                m_limp = df_limp[(df_limp['GP'] == gp_d) & (df_limp['Tipo'] == ses_d)]
+                if not m_limp.empty:
+                    u_del = st.selectbox("Participante para Deletar:", [""] + sorted(m_limp['Usuario'].tolist()))
+                    if u_del != "" and st.button(f"CONFIRMAR EXCLUSÃO DE {u_del}", type="primary"):
+                        mascara = ~((df_limp['GP'] == gp_d) & (df_limp['Tipo'] == ses_d) & (df_limp['Usuario'] == u_del))
+                        if deletar_registro_github(ARQUIVO_DADOS, mascara):
+                            st.success("Registro removido com sucesso!")
+                            st.rerun()
 
     elif senha != "":
-        st.error("Senha incorreta.")
+        st.error("Senha de administrador incorreta.")
