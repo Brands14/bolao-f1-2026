@@ -77,7 +77,7 @@ st.markdown(f"""
         z-index: 0;
         transform: translate(-50%, -50%);
         object-fit: cover;
-        filter: brightness(0.85) contrast(1.1);
+        filter: brightness(1) contrast(1.1);
     }}
     .hero-overlay {{
         position: relative;
