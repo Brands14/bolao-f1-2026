@@ -42,27 +42,31 @@ ARQUIVO_DADOS = "palpites_permanentes_2026.csv"
 ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
 ARQUIVO_HISTORICO = "historico_alteracoes_2026.csv"
 
-# --- CSS CUSTOMIZADO (INSPIRADO NO DESIGN REACT / TAILWIND) ---
-st.markdown("""
+# URL do seu vídeo hospedado diretamente no seu GitHub
+URL_VIDEO_GITHUB = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/f1_bg.mp4"
+
+# --- CSS CUSTOMIZADO ---
+st.markdown(f"""
 <style>
     /* Estilização Geral F1 Dark */
-    .stApp {
+    .stApp {{
         background-color: #0E0E10;
         color: #F3F4F6;
-    }
+    }}
     
     /* Hero Container com Vídeo de Fundo */
-    .hero-container {
+    .hero-container {{
         position: relative;
         width: 100%;
-        height: 280px;
+        height: 260px;
         border-radius: 20px;
         overflow: hidden;
         margin-bottom: 25px;
         border: 1px solid #252525;
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    }
-    .hero-video {
+        background: #151515;
+    }}
+    .hero-video {{
         position: absolute;
         top: 50%;
         left: 50%;
@@ -73,72 +77,82 @@ st.markdown("""
         z-index: 0;
         transform: translate(-50%, -50%);
         object-fit: cover;
-        filter: brightness(0.4) contrast(1.1);
-    }
-    .hero-overlay {
+        filter: brightness(0.45) contrast(1.1);
+    }}
+    .hero-overlay {{
         position: relative;
         z-index: 1;
-        padding: 40px;
+        padding: 35px;
         display: flex;
         flex-direction: column;
         justify-content: center;
         height: 100%;
-        background: linear-gradient(90deg, rgba(14,14,16,0.9) 0%, rgba(14,14,16,0.3) 100%);
-    }
-    .hero-title {
+        background: linear-gradient(90deg, rgba(14,14,16,0.92) 0%, rgba(14,14,16,0.3) 100%);
+    }}
+    .hero-title {{
         font-size: 2.8rem;
         font-weight: 900;
         letter-spacing: -1px;
         color: #FFFFFF;
         margin: 0;
         text-transform: uppercase;
-    }
-    .hero-subtitle {
+    }}
+    .hero-subtitle {{
         color: #E10600;
         font-size: 1.2rem;
         font-weight: 700;
         margin-top: 5px;
         text-transform: uppercase;
         letter-spacing: 2px;
-    }
+    }}
     
-    /* Customização das Abas e Cards */
-    .stTabs [data-baseweb="tab-list"] {
+    /* Customização das Abas */
+    .stTabs [data-baseweb="tab-list"] {{
         gap: 8px;
         background-color: #151515;
         padding: 8px;
         border-radius: 14px;
         border: 1px solid #252525;
-    }
-    .stTabs [data-baseweb="tab"] {
+    }}
+    .stTabs [data-baseweb="tab"] {{
         height: 45px;
         border-radius: 10px;
         color: #9CA3AF;
         font-weight: 600;
         border: none;
-    }
-    .stTabs [aria-selected="true"] {
+    }}
+    .stTabs [aria-selected="true"] {{
         background-color: #E10600 !important;
         color: #FFFFFF !important;
-    }
+    }}
     
-    /* Ajustes em Inputs e Botões */
-    div[data-baseweb="select"] > div {
+    /* Inputs e Botões */
+    div[data-baseweb="select"] > div {{
         background-color: #151515 !important;
         border-color: #252525 !important;
         border-radius: 10px !important;
         color: #FFFFFF !important;
-    }
-    .stButton > button {
+    }}
+    .stButton > button {{
         border-radius: 12px !important;
         font-weight: 700 !important;
         transition: all 0.2s ease-in-out !important;
-    }
-    .stButton > button:hover {
+    }}
+    .stButton > button:hover {{
         transform: translateY(-2px);
         box-shadow: 0 4px 15px rgba(225, 6, 0, 0.4);
-    }
+    }}
 </style>
+
+<div class="hero-container">
+    <video autoplay loop muted playsinline class="hero-video">
+        <source src="{URL_VIDEO_GITHUB}" type="video/mp4">
+    </video>
+    <div class="hero-overlay">
+        <h1 class="hero-title">BOLÃO F1 2026</h1>
+        <div class="hero-subtitle">🏁 Campeonato Oficial de Palpites</div>
+    </div>
+</div>
 """, unsafe_allow_html=True)
 
 # 2. Dados e Estruturas Base
@@ -438,19 +452,6 @@ def index_piloto(val):
     val_str = str(val).strip() if pd.notna(val) else ""
     return pilotos.index(val_str) if val_str in pilotos else 0
 
-# --- TELA DE BOAS-VINDAS / HERO SCREEN COM VÍDEO ---
-st.markdown("""
-<div class="hero-container">
-    <video autoplay loop muted playsinline class="hero-video">
-        <source src="https://assets.mixkit.co/videos/preview/mixkit-formula-one-cars-racing-on-a-track-40348-large.mp4" type="video/mp4">
-    </video>
-    <div class="hero-overlay">
-        <h1 class="hero-title">BOLÃO F1 2026</h1>
-        <div class="hero-subtitle">🏁 Campeonato Oficial de Palpites</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
 # 5. Navegação Lateral
 st.sidebar.markdown("## 🏎️ Navegação")
 menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
@@ -627,7 +628,7 @@ elif menu == "Classificações":
                     rk_equipes.index = range(1, len(rk_equipes) + 1)
                     st.dataframe(rk_equipes, use_container_width=True)
 
-# --- ÁREA: ADMINISTRADOR (PAINEL MODULARIZADO) ---
+# --- ÁREA: ADMINISTRADOR ---
 elif menu == "Administrador":
     senha = st.sidebar.text_input("Senha do Diretor de Prova:", type="password")
     
