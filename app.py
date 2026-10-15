@@ -34,6 +34,7 @@ if not GITHUB_TOKEN:
 
 ARQUIVO_DADOS = "palpites_permanentes_2026.csv" 
 ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
+ARQUIVO_HISTORICO = "historico_alteracoes_2026.csv"
 
 # --- LOGO ---
 nome_arquivo_logo = "WhatsApp Image 2026-02-24 at 16.12.18.png"
@@ -129,7 +130,41 @@ def ler_dados(arquivo):
     except urllib.error.HTTPError:
         return pd.DataFrame(), None
 
-def guardar_dados(novos_dados, nome_arquivo):
+def registrar_historico(usuario, gp, tipo, acao):
+    agora_br = datetime.now(fuso_br)
+    log_entry = {
+        "Data_Hora": agora_br.strftime('%d/%m/%Y %H:%M:%S'),
+        "Usuario": usuario,
+        "GP": gp,
+        "Tipo": tipo,
+        "Mensagem": f"O palpiteiro {usuario} {acao} seu palpite para o GP de {gp} ({tipo}) às {agora_br.strftime('%H:%M:%S')} no dia {agora_br.strftime('%d/%m/%Y')}."
+    }
+    
+    df_hist, sha_hist = ler_dados(ARQUIVO_HISTORICO)
+    df_novo_hist = pd.DataFrame([log_entry])
+    df_final_hist = pd.concat([df_hist, df_novo_hist], ignore_index=True) if not df_hist.empty else df_novo_hist
+    
+    conteudo_csv = df_final_hist.to_csv(index=False)
+    conteudo_b64 = base64.b64encode(conteudo_csv.encode()).decode()
+    
+    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{ARQUIVO_HISTORICO}"
+    payload = {
+        "message": f"Log de histórico: {usuario} - {gp}",
+        "content": conteudo_b64,
+        "sha": sha_hist if sha_hist else None
+    }
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Content-Type": "application/json",
+        "User-Agent": "BolaoF1-App"
+    }
+    try:
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers, method='PUT')
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        print(f"Erro ao salvar log de historico: {e}")
+
+def guardar_dados(novos_dados, nome_arquivo, eh_edicao_admin=False):
     df_atual, sha = ler_dados(nome_arquivo)
     df_novo = pd.DataFrame([novos_dados])
     
@@ -140,23 +175,28 @@ def guardar_dados(novos_dados, nome_arquivo):
                 (df_atual['GP'] == novos_dados['GP']) & 
                 (df_atual['Tipo'] == novos_dados['Tipo'])
             )
+            eh_alteracao = df_atual[condicao_existente].shape[0] > 0
             df_atual = df_atual[~condicao_existente]
         else:
             condicao_existente = (
                 (df_atual['GP'] == novos_dados['GP']) & 
                 (df_atual['Tipo'] == novos_dados['Tipo'])
             )
+            eh_alteracao = False
             df_atual = df_atual[~condicao_existente]
 
         df_final = pd.concat([df_atual, df_novo], ignore_index=True)
     else:
         df_final = df_novo
+        eh_alteracao = False
 
     conteudo_csv = df_final.to_csv(index=False)
     conteudo_b64 = base64.b64encode(conteudo_csv.encode()).decode()
     
     if "Usuario" in novos_dados:
         msg_log = f"Atualizado palpite: {novos_dados['Usuario']} - {novos_dados['GP']} ({novos_dados['Tipo']})"
+        acao_log = "alterou (pelo Administrador)" if eh_edicao_admin else ("alterou" if eh_alteracao else "enviou")
+        registrar_historico(novos_dados['Usuario'], novos_dados['GP'], novos_dados['Tipo'], acao_log)
     else:
         msg_log = f"Atualizado Gabarito: {novos_dados.get('GP', 'Oficial')} ({novos_dados.get('Tipo', '')})"
     
@@ -542,7 +582,13 @@ elif menu == "Administrador":
     if senha == "fleury1475":
         st.warning("⚠ MODO ADMINISTRADOR ATIVO (DADOS PERMANENTES)")
         
-        tab1, tab2, tab3, tab4 = st.tabs(["Auditoria & Edição de Palpites", "Gabaritos Oficiais", "Consultar Gabaritos Salvos", "Limpeza de Dados"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "Auditoria & Edição de Palpites", 
+            "📜 Histórico de Alterações",
+            "Gabaritos Oficiais", 
+            "Consultar Gabaritos Salvos", 
+            "Limpeza de Dados"
+        ])
         
         # --- TAB 1: AUDITORIA E EDIÇÃO DE PALPITES PELO ADMIN ---
         with tab1:
@@ -574,7 +620,6 @@ elif menu == "Administrador":
                     sessao_edit = st.selectbox("Selecione a Sessão:", opcoes_sessao_edit, key="sessao_edit_adm")
                 
                 if user_edit != "":
-                    # Busca palpite do usuário
                     match_user_edit = df_auditoria_limpo[
                         (df_auditoria_limpo['Usuario'] == user_edit) & 
                         (df_auditoria_limpo['GP'] == gp_edit) & 
@@ -649,15 +694,45 @@ elif menu == "Administrador":
                                 "PrimeiroAbandono": ab_e,
                                 "MaisUltrapassagens": mu_e
                             }
-                            if guardar_dados(dados_editados, ARQUIVO_DADOS):
+                            if guardar_dados(dados_editados, ARQUIVO_DADOS, eh_edicao_admin=True):
                                 st.success(f"Palpite de {user_edit} para o GP de {gp_edit} foi alterado com sucesso pelo Administrador!")
                                 time.sleep(1)
                                 st.rerun()
             else:
                 st.info("Nenhum palpite registrado no banco até o momento.")
 
-        # --- TAB 2: GABARITOS OFICIAIS ---
+        # --- TAB 2: HISTÓRICO DE ALTERAÇÕES ---
         with tab2:
+            st.subheader("📜 Log Auditável de Envios e Alterações")
+            st.caption("Acompanhe o momento exato (Horário de Brasília) em que cada participante enviou ou modificou um palpite.")
+            
+            df_historico_log, _ = ler_dados(ARQUIVO_HISTORICO)
+            
+            if not df_historico_log.empty:
+                col_flt_h1, col_flt_h2 = st.columns(2)
+                with col_flt_h1:
+                    filtro_hist_user = st.selectbox("Filtrar Histórico por Participante:", ["Todos os Participantes"] + participantes, key="flt_hist_usr")
+                with col_flt_h2:
+                    filtro_hist_gp = st.selectbox("Filtrar Histórico por GP:", ["Todos os GPs"] + lista_gps, key="flt_hist_gp")
+                
+                df_view_hist = df_historico_log.copy()
+                if filtro_hist_user != "Todos os Participantes":
+                    df_view_hist = df_view_hist[df_view_hist['Usuario'] == filtro_hist_user]
+                if filtro_hist_gp != "Todos os GPs":
+                    df_view_hist = df_view_hist[df_view_hist['GP'] == filtro_hist_gp]
+                
+                if not df_view_hist.empty:
+                    # Inverte para mostrar os mais recentes no topo
+                    df_view_hist = df_view_hist.iloc[::-1]
+                    for idx, row_h in df_view_hist.iterrows():
+                        st.markdown(f"⏱️ **`[{row_h.get('Data_Hora', '')}]`** — {row_h.get('Mensagem', '')}")
+                else:
+                    st.info("Nenhum registro encontrado para os filtros selecionados.")
+            else:
+                st.info("Ainda não há registros no histórico de alterações.")
+
+        # --- TAB 3: GABARITOS OFICIAIS ---
+        with tab3:
             st.header("🏆 Inserir / Modificar Gabarito Oficial")
             col_gp_a, col_tipo_a = st.columns(2)
             with col_gp_a:
@@ -667,7 +742,6 @@ elif menu == "Administrador":
             with col_tipo_a:
                 tipo_admin = st.selectbox("Sessão do Gabarito:", opcoes_admin, key="tipo_adm")
             
-            # BUSCA GABARITO EXISTENTE
             df_gabs_exist, _ = ler_dados(ARQUIVO_GABARITOS)
             gab_existente = {}
             if not df_gabs_exist.empty:
@@ -773,8 +847,8 @@ elif menu == "Administrador":
                     else:
                         st.warning("Selecione um gabarito na lista acima.")
 
-        # --- TAB 3: GABARITOS SALVOS ---
-        with tab3:
+        # --- TAB 4: GABARITOS SALVOS ---
+        with tab4:
             st.subheader("📋 Gabaritos Oficiais Salvos")
             st.write("Consulte aqui o resultado de todas as sessões e GPs já registados no sistema.")
             
@@ -794,8 +868,8 @@ elif menu == "Administrador":
             else:
                 st.info("Nenhum gabarito registado no banco de dados até ao momento.")
 
-        # --- TAB 4: LIMPEZA DE DADOS ---
-        with tab4:
+        # --- TAB 5: LIMPEZA DE DADOS ---
+        with tab5:
             st.header("🗑️ Apagar Registros de Palpites")
             df_limpeza, _ = ler_dados(ARQUIVO_DADOS)
             if not df_limpeza.empty:
