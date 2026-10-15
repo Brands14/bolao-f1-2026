@@ -45,7 +45,7 @@ ARQUIVO_HISTORICO = "historico_alteracoes_2026.csv"
 # URL do seu vídeo hospedado diretamente no seu GitHub
 URL_VIDEO_GITHUB = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/f1_bg.mp4"
 
-# --- CSS CUSTOMIZADO COM VÍDEO EXPANDIDO E MAIS CLARO ---
+# --- CSS CUSTOMIZADO ---
 st.markdown(f"""
 <style>
     /* Estilização Geral F1 Dark */
@@ -54,16 +54,16 @@ st.markdown(f"""
         color: #F3F4F6;
     }}
     
-    /* Hero Container com Vídeo de Fundo Ajustado */
+    /* Hero Container com Vídeo de Fundo */
     .hero-container {{
         position: relative;
         width: 100%;
-        height: 380px; /* Altura maior */
+        height: 260px;
         border-radius: 20px;
         overflow: hidden;
         margin-bottom: 25px;
         border: 1px solid #252525;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         background: #151515;
     }}
     .hero-video {{
@@ -77,35 +77,33 @@ st.markdown(f"""
         z-index: 0;
         transform: translate(-50%, -50%);
         object-fit: cover;
-        filter: brightness(0.85) contrast(1.05); /* Vídeo mais claro */
+        filter: brightness(0.45) contrast(1.1);
     }}
     .hero-overlay {{
         position: relative;
         z-index: 1;
-        padding: 45px;
+        padding: 35px;
         display: flex;
         flex-direction: column;
-        justify-content: flex-end;
+        justify-content: center;
         height: 100%;
-        background: linear-gradient(180deg, rgba(14,14,16,0.1) 0%, rgba(14,14,16,0.85) 100%);
+        background: linear-gradient(90deg, rgba(14,14,16,0.92) 0%, rgba(14,14,16,0.3) 100%);
     }}
     .hero-title {{
-        font-size: 3.2rem;
+        font-size: 2.8rem;
         font-weight: 900;
         letter-spacing: -1px;
         color: #FFFFFF;
         margin: 0;
         text-transform: uppercase;
-        text-shadow: 0 4px 12px rgba(0,0,0,0.8);
     }}
     .hero-subtitle {{
         color: #E10600;
-        font-size: 1.3rem;
-        font-weight: 800;
+        font-size: 1.2rem;
+        font-weight: 700;
         margin-top: 5px;
         text-transform: uppercase;
         letter-spacing: 2px;
-        text-shadow: 0 2px 8px rgba(0,0,0,0.8);
     }}
     
     /* Customização das Abas */
@@ -699,4 +697,111 @@ elif menu == "Administrador":
                             dados_e = {
                                 "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S') + " (Admin)",
                                 "GP": g_edit, "Tipo": s_edit, "Usuario": u_edit, "Equipe": eq_u,
-                                "Pole": pole_e, "P1": p1_e, "P2": p2_e, "P
+                                "Pole": pole_e, "P1": p1_e, "P2": p2_e, "P3": p3_e, "P4": p4_e, "P5": p5_e,
+                                "P6": p6_e, "P7": p7_e, "P8": p8_e, "P9": p9_e, "P10": p10_e,
+                                "VoltaRapida": vr_e, "PrimeiroAbandono": ab_e, "MaisUltrapassagens": mu_e
+                            }
+                            if guardar_dados(dados_e, ARQUIVO_DADOS, eh_edicao_admin=True):
+                                st.success(f"Palpite de {u_edit} atualizado com sucesso!")
+                                time.sleep(1)
+                                st.rerun()
+
+        # TAB 2: LOG AUDITÁVEL
+        with tab2:
+            st.subheader("📜 Histórico Completo de Alterações e Acessos")
+            df_h, _ = ler_dados(ARQUIVO_HISTORICO)
+            if not df_h.empty:
+                c_f1, c_f2 = st.columns(2)
+                with c_f1: u_flt = st.selectbox("Filtrar por Participante:", ["Todos"] + participantes)
+                with c_f2: g_flt = st.selectbox("Filtrar por GP:", ["Todos"] + lista_gps)
+                
+                df_vh = df_h.copy()
+                if u_flt != "Todos": df_vh = df_vh[df_vh['Usuario'] == u_flt]
+                if g_flt != "Todos": df_vh = df_vh[df_vh['GP'] == g_flt]
+                
+                if not df_vh.empty:
+                    for _, row_h in df_vh.iloc[::-1].iterrows():
+                        st.markdown(f"⏱️ **`[{row_h.get('Data_Hora', '')}]`** — {row_h.get('Mensagem', '')}")
+                else:
+                    st.info("Nenhum evento registrado com esses filtros.")
+            else:
+                st.info("Histórico de alterações vazio.")
+
+        # TAB 3: GABARITOS OFICIAIS
+        with tab3:
+            st.header("🚩 Homologar Resultado Oficial (Gabarito)")
+            col_ga, col_ta = st.columns(2)
+            with col_ga: gp_a = st.selectbox("GP do Gabarito:", lista_gps, key="g_a")
+            opts_a = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"] if gp_a in sprint_gps else ["Classificação Principal (Pole)", "Corrida Principal"]
+            with col_ta: tp_a = st.selectbox("Sessão:", opts_a, key="t_a")
+            
+            df_ge, _ = ler_dados(ARQUIVO_GABARITOS)
+            m_g = df_ge[(df_ge['GP'] == gp_a) & (df_ge['Tipo'] == tp_a)] if not df_ge.empty else pd.DataFrame()
+            g_ex = m_g.iloc[-1].to_dict() if not m_g.empty else {}
+            
+            with st.form("form_gabarito_oficial"):
+                pole_g = p1_g = p2_g = p3_g = p4_g = p5_g = p6_g = p7_g = p8_g = p9_g = p10_g = ""
+                vr_g = ab_g = mu_g = ""
+                
+                if "Pole" in tp_a:
+                    pole_g = st.selectbox("Pole Position Oficial:", pilotos, index=index_piloto(g_ex.get('Pole', '')))
+                elif "Corrida Principal" in tp_a:
+                    c1_g, c2_g = st.columns(2)
+                    with c1_g:
+                        p1_g = st.selectbox("1º Colocado:", pilotos, index=index_piloto(g_ex.get('P1', '')))
+                        p2_g = st.selectbox("2º Colocado:", pilotos, index=index_piloto(g_ex.get('P2', '')))
+                        p3_g = st.selectbox("3º Colocado:", pilotos, index=index_piloto(g_ex.get('P3', '')))
+                        p4_g = st.selectbox("4º Colocado:", pilotos, index=index_piloto(g_ex.get('P4', '')))
+                        p5_g = st.selectbox("5º Colocado:", pilotos, index=index_piloto(g_ex.get('P5', '')))
+                    with c2_g:
+                        p6_g = st.selectbox("6º Colocado:", pilotos, index=index_piloto(g_ex.get('P6', '')))
+                        p7_g = st.selectbox("7º Colocado:", pilotos, index=index_piloto(g_ex.get('P7', '')))
+                        p8_g = st.selectbox("8º Colocado:", pilotos, index=index_piloto(g_ex.get('P8', '')))
+                        p9_g = st.selectbox("9º Colocado:", pilotos, index=index_piloto(g_ex.get('P9', '')))
+                        p10_g = st.selectbox("10º Colocado:", pilotos, index=index_piloto(g_ex.get('P10', '')))
+                    c3_g, c4_g, c5_g = st.columns(3)
+                    with c3_g: vr_g = st.selectbox("Melhor Volta:", pilotos, index=index_piloto(g_ex.get('VoltaRapida', '')))
+                    with c4_g: ab_g = st.selectbox("1º Abandono:", pilotos, index=index_piloto(g_ex.get('PrimeiroAbandono', '')))
+                    with c5_g: mu_g = st.selectbox("Mais Ultrapassagens:", pilotos, index=index_piloto(g_ex.get('MaisUltrapassagens', '')))
+                
+                if st.form_submit_button("Salvar / Atualizar Gabarito Oficial 🏆"):
+                    dados_g = {
+                        "GP": gp_a, "Tipo": tp_a, "Pole": pole_g,
+                        "P1": p1_g, "P2": p2_g, "P3": p3_g, "P4": p4_g, "P5": p5_g,
+                        "P6": p6_g, "P7": p7_g, "P8": p8_g, "P9": p9_g, "P10": p10_g,
+                        "VoltaRapida": vr_g, "PrimeiroAbandono": ab_g, "MaisUltrapassagens": mu_g
+                    }
+                    if guardar_dados(dados_g, ARQUIVO_GABARITOS):
+                        st.success("Gabarito Oficial Homologado!")
+                        time.sleep(1)
+                        st.rerun()
+
+        # TAB 4: CONSULTAR GABARITOS
+        with tab4:
+            st.subheader("📋 Gabaritos Homologados")
+            df_g_cons, _ = ler_dados(ARQUIVO_GABARITOS)
+            if not df_g_cons.empty:
+                st.dataframe(df_g_cons.dropna(how='all', axis=1), use_container_width=True)
+            else:
+                st.info("Nenhum gabarito cadastrado.")
+
+        # TAB 5: LIMPEZA DE DADOS
+        with tab5:
+            st.header("🗑️ Exclusão Pontual de Registros")
+            df_limp, _ = ler_dados(ARQUIVO_DADOS)
+            if not df_limp.empty:
+                c_del_gp, c_del_ses = st.columns(2)
+                with c_del_gp: gp_d = st.selectbox("GP:", lista_gps, key="gp_d")
+                with c_del_ses: ses_d = st.selectbox("Sessão:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"], key="ses_d")
+                
+                m_limp = df_limp[(df_limp['GP'] == gp_d) & (df_limp['Tipo'] == ses_d)]
+                if not m_limp.empty:
+                    u_del = st.selectbox("Participante para Deletar:", [""] + sorted(m_limp['Usuario'].tolist()))
+                    if u_del != "" and st.button(f"CONFIRMAR EXCLUSÃO DE {u_del}", type="primary"):
+                        mascara = ~((df_limp['GP'] == gp_d) & (df_limp['Tipo'] == ses_d) & (df_limp['Usuario'] == u_del))
+                        if deletar_registro_github(ARQUIVO_DADOS, mascara):
+                            st.success("Registro removido com sucesso!")
+                            st.rerun()
+
+    elif senha != "":
+        st.error("Senha de administrador incorreta.")
