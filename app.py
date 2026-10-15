@@ -542,20 +542,121 @@ elif menu == "Administrador":
     if senha == "fleury1475":
         st.warning("⚠ MODO ADMINISTRADOR ATIVO (DADOS PERMANENTES)")
         
-        tab1, tab2, tab3, tab4 = st.tabs(["Auditoria de Palpites", "Gabaritos Oficiais", "Consultar Gabaritos Salvos", "Limpeza de Dados"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Auditoria & Edição de Palpites", "Gabaritos Oficiais", "Consultar Gabaritos Salvos", "Limpeza de Dados"])
         
+        # --- TAB 1: AUDITORIA E EDIÇÃO DE PALPITES PELO ADMIN ---
         with tab1:
-            st.subheader("🕵️‍♂️ Auditoria: Palpites da Turma")
-            filtro_gp_auditoria = st.selectbox("Filtrar Auditoria por GP:", ["Todos os GPs"] + lista_gps)
+            st.subheader("🕵️‍♂️ Auditoria e Edição Direta de Palpites")
+            st.caption("Consulte ou altere o palpite de qualquer participante para qualquer GP (mesmo os já finalizados).")
+            
             df_auditoria, _ = ler_dados(ARQUIVO_DADOS)
+            
             if not df_auditoria.empty:
                 df_auditoria_limpo = df_auditoria.drop_duplicates(subset=['Usuario', 'GP', 'Tipo'], keep='last')
+                
+                # Tabela de Consulta
+                filtro_gp_auditoria = st.selectbox("Filtrar Tabela da Auditoria por GP:", ["Todos os GPs"] + lista_gps, key="flt_aud")
+                df_view_aud = df_auditoria_limpo.copy()
                 if filtro_gp_auditoria != "Todos os GPs":
-                    df_auditoria_limpo = df_auditoria_limpo[df_auditoria_limpo["GP"] == filtro_gp_auditoria]
-                st.dataframe(df_auditoria_limpo, use_container_width=True)
-            else:
-                st.info("Sem palpites.")
+                    df_view_aud = df_view_aud[df_view_aud["GP"] == filtro_gp_auditoria]
+                st.dataframe(df_view_aud, use_container_width=True)
+                
+                st.divider()
+                st.subheader("🛠️ Editar Palpite de um Participante")
+                
+                col_edit_user, col_edit_gp, col_edit_sessao = st.columns(3)
+                with col_edit_user:
+                    user_edit = st.selectbox("Selecione o Participante:", [""] + participantes, key="user_edit_adm")
+                with col_edit_gp:
+                    gp_edit = st.selectbox("Selecione o GP:", lista_gps, key="gp_edit_adm")
+                with col_edit_sessao:
+                    opcoes_sessao_edit = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"] if gp_edit in sprint_gps else ["Classificação Principal (Pole)", "Corrida Principal"]
+                    sessao_edit = st.selectbox("Selecione a Sessão:", opcoes_sessao_edit, key="sessao_edit_adm")
+                
+                if user_edit != "":
+                    # Busca palpite do usuário
+                    match_user_edit = df_auditoria_limpo[
+                        (df_auditoria_limpo['Usuario'] == user_edit) & 
+                        (df_auditoria_limpo['GP'] == gp_edit) & 
+                        (df_auditoria_limpo['Tipo'] == sessao_edit)
+                    ]
+                    
+                    palpite_adm_existente = {}
+                    if not match_user_edit.empty:
+                        palpite_adm_existente = match_user_edit.iloc[-1].to_dict()
+                        st.info(f"✏️ Editando palpite existente de **{user_edit}** para **GP {gp_edit} - {sessao_edit}**.")
+                    else:
+                        st.warning(f"⚠️ NENHUM palpite encontrado para **{user_edit}** no **GP {gp_edit} - {sessao_edit}**. O formulário abaixo criará um NOVO registro.")
+                    
+                    equipe_user_edit = next((eq for eq, membros in equipes.items() if user_edit in membros), "Sem Equipe")
+                    
+                    with st.form("form_edicao_admin"):
+                        st.markdown(f"#### Formutário de Ajuste: {user_edit}")
+                        
+                        pole_e = p1_e = p2_e = p3_e = p4_e = p5_e = p6_e = p7_e = p8_e = p9_e = p10_e = ""
+                        vr_e = ab_e = mu_e = ""
+                        
+                        if "Pole" in sessao_edit:
+                            pole_e = st.selectbox("Pole Position:", pilotos, index=index_piloto(palpite_adm_existente.get('Pole', '')), key="pole_adm_e")
+                        elif sessao_edit == "Corrida Principal":
+                            c1_e, c2_e = st.columns(2)
+                            with c1_e:
+                                p1_e = st.selectbox("1º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P1', '')), key="p1_adm_e")
+                                p2_e = st.selectbox("2º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P2', '')), key="p2_adm_e")
+                                p3_e = st.selectbox("3º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P3', '')), key="p3_adm_e")
+                                p4_e = st.selectbox("4º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P4', '')), key="p4_adm_e")
+                                p5_e = st.selectbox("5º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P5', '')), key="p5_adm_e")
+                            with c2_e:
+                                p6_e = st.selectbox("6º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P6', '')), key="p6_adm_e")
+                                p7_e = st.selectbox("7º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P7', '')), key="p7_adm_e")
+                                p8_e = st.selectbox("8º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P8', '')), key="p8_adm_e")
+                                p9_e = st.selectbox("9º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P9', '')), key="p9_adm_e")
+                                p10_e = st.selectbox("10º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P10', '')), key="p10_adm_e")
+                            
+                            st.write("---")
+                            c3_e, c4_e, c5_e = st.columns(3)
+                            with c3_e:
+                                vr_e = st.selectbox("Melhor Volta:", pilotos, index=index_piloto(palpite_adm_existente.get('VoltaRapida', '')), key="vr_adm_e")
+                            with c4_e:
+                                ab_e = st.selectbox("1º Abandono:", pilotos, index=index_piloto(palpite_adm_existente.get('PrimeiroAbandono', '')), key="ab_adm_e")
+                            with c5_e:
+                                mu_e = st.selectbox("Mais Ultrapassagens:", pilotos, index=index_piloto(palpite_adm_existente.get('MaisUltrapassagens', '')), key="mu_adm_e")
+                                
+                        elif sessao_edit == "Corrida Sprint":
+                            c1_e, c2_e = st.columns(2)
+                            with c1_e:
+                                p1_e = st.selectbox("1º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P1', '')), key="s1_adm_e")
+                                p2_e = st.selectbox("2º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P2', '')), key="s2_adm_e")
+                                p3_e = st.selectbox("3º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P3', '')), key="s3_adm_e")
+                                p4_e = st.selectbox("4º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P4', '')), key="s4_adm_e")
+                            with c2_e:
+                                p5_e = st.selectbox("5º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P5', '')), key="s5_adm_e")
+                                p6_e = st.selectbox("6º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P6', '')), key="s6_adm_e")
+                                p7_e = st.selectbox("7º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P7', '')), key="s7_adm_e")
+                                p8_e = st.selectbox("8º Colocado:", pilotos, index=index_piloto(palpite_adm_existente.get('P8', '')), key="s8_adm_e")
 
+                        if st.form_submit_button("Atualizar Palpite do Participante 🛠️"):
+                            dados_editados = {
+                                "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S') + " (Admin)",
+                                "GP": gp_edit,
+                                "Tipo": sessao_edit,
+                                "Usuario": user_edit,
+                                "Equipe": equipe_user_edit,
+                                "Pole": pole_e,
+                                "P1": p1_e, "P2": p2_e, "P3": p3_e, "P4": p4_e, "P5": p5_e,
+                                "P6": p6_e, "P7": p7_e, "P8": p8_e, "P9": p9_e, "P10": p10_e,
+                                "VoltaRapida": vr_e,
+                                "PrimeiroAbandono": ab_e,
+                                "MaisUltrapassagens": mu_e
+                            }
+                            if guardar_dados(dados_editados, ARQUIVO_DADOS):
+                                st.success(f"Palpite de {user_edit} para o GP de {gp_edit} foi alterado com sucesso pelo Administrador!")
+                                time.sleep(1)
+                                st.rerun()
+            else:
+                st.info("Nenhum palpite registrado no banco até o momento.")
+
+        # --- TAB 2: GABARITOS OFICIAIS ---
         with tab2:
             st.header("🏆 Inserir / Modificar Gabarito Oficial")
             col_gp_a, col_tipo_a = st.columns(2)
@@ -672,6 +773,7 @@ elif menu == "Administrador":
                     else:
                         st.warning("Selecione um gabarito na lista acima.")
 
+        # --- TAB 3: GABARITOS SALVOS ---
         with tab3:
             st.subheader("📋 Gabaritos Oficiais Salvos")
             st.write("Consulte aqui o resultado de todas as sessões e GPs já registados no sistema.")
@@ -692,6 +794,7 @@ elif menu == "Administrador":
             else:
                 st.info("Nenhum gabarito registado no banco de dados até ao momento.")
 
+        # --- TAB 4: LIMPEZA DE DADOS ---
         with tab4:
             st.header("🗑️ Apagar Registros de Palpites")
             df_limpeza, _ = ler_dados(ARQUIVO_DADOS)
