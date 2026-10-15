@@ -453,7 +453,7 @@ def index_piloto(val):
     return pilotos.index(val_str) if val_str in pilotos else 0
 
 # 5. Navegação Lateral
-st.sidebar.markdown("## 🏎️ Navegação")
+st.sidebar.markdown("## 🏎️ Menu de Navegação")
 menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
 # --- ÁREA: ENVIAR PALPITE ---
