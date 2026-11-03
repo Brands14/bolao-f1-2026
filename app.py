@@ -1,7 +1,7 @@
-
 import base64
 import hmac
 import io
+import inspect
 import json
 import logging
 import os
@@ -124,7 +124,7 @@ def configuracao(nome, padrao=None):
         return valor
     try:
         return st.secrets.get(nome, padrao)
-    except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
+    except (FileNotFoundError, getattr(st.errors, 'StreamlitSecretNotFoundError', FileNotFoundError)):
         return padrao
 
 
@@ -177,7 +177,7 @@ def _escrever_csv(arquivo, df, sha, mensagem):
     with urllib.request.urlopen(req, timeout=15) as response:
         sucesso = response.status in (200, 201)
     if sucesso:
-        _ler_dados_cache.clear(arquivo)
+        _ler_dados_cache.clear()
     return sucesso
 
 
@@ -242,7 +242,7 @@ def deletar_registro_github(arquivo, mascara_filtro):
         atual, sha = _ler_dados_remotos(arquivo)
         if atual.empty or sha != snapshot_sha or len(mascara_filtro) != len(atual):
             st.warning('Os dados mudaram. Atualize a tela antes de excluir.')
-            _ler_dados_cache.clear(arquivo)
+            _ler_dados_cache.clear()
             return False
         if isinstance(mascara_filtro, pd.Series) and not mascara_filtro.index.equals(atual.index):
             return False
@@ -479,10 +479,10 @@ def tela_enviar():
     if existente:
         st.info('Seu palpite atual foi carregado. Ao gravar, suas novas escolhas substituem as anteriores.')
     secao('02 / GRID',f'GP de {gp} · {tipo}')
-    fotos = st.toggle('Mostrar fotos dos pilotos', value=False)
+    fotos = getattr(st, 'toggle', st.checkbox)('Mostrar fotos dos pilotos', value=False)
     # Contexto inclui participante, GP e sessão: trocar a seleção nunca carrega o grid de outra pessoa.
     contexto = f'envio_{usuario}_{gp}_{tipo}'
-    with st.container(border=True):
+    with st.container(**({'border': True} if 'border' in inspect.signature(st.container).parameters else {})):
         valores = formulario_pilotos(tipo,existente,contexto,fotos)
     preenchidos = sum(bool(valores[c]) for c in campos_sessao(tipo))
     total = len(campos_sessao(tipo))
@@ -490,7 +490,7 @@ def tela_enviar():
     secao('03 / CONFIRMAÇÃO','Pronto para entrar na pista?')
     with st.form(f'confirmar_{contexto}'):
         email = st.text_input('Confirme seu e-mail cadastrado', type='password')
-        enviar = st.form_submit_button('Gravar meu palpite  →', type='primary', width='stretch')
+        enviar = st.form_submit_button('Gravar meu palpite  →', type='primary', use_container_width=True)
     if enviar:
         if not _email_valido(usuario,email):
             st.error('E-mail não confere com o cadastrado para este participante.')
@@ -527,7 +527,7 @@ def tela_meus_palpites():
     c1,c2 = st.columns(2)
     c1.metric('Palpites registrados',len(meus))
     c2.metric('Etapas disputadas',meus['GP'].nunique())
-    st.dataframe(meus.drop(columns=['Usuario','Equipe']),width='stretch',hide_index=True)
+    st.dataframe(meus.drop(columns=['Usuario','Equipe']),use_container_width=True,hide_index=True)
 
 
 def ranking(df,chave):
@@ -561,8 +561,11 @@ def tela_classificacoes():
             tabela = tabela.copy()
             tabela.index = range(1,len(tabela)+1)
             tabela.index.name = 'Posição'
-            st.dataframe(tabela,width='stretch')
-            st.bar_chart(tabela.set_index(tabela.columns[0])['Pontos'],color='#ff463e',horizontal=True)
+            st.dataframe(tabela,use_container_width=True)
+            grafico = tabela.set_index(tabela.columns[0])['Pontos']
+            opcoes_grafico = {'color': '#ff463e', 'horizontal': True}
+            parametros = inspect.signature(st.bar_chart).parameters
+            st.bar_chart(grafico, **{k: v for k, v in opcoes_grafico.items() if k in parametros})
 
 
 def admin_auditoria():
@@ -573,7 +576,7 @@ def admin_auditoria():
         return
     df = df.drop_duplicates(['Usuario','GP','Tipo'],keep='last')
     gp_filtro = st.selectbox('Filtrar auditoria por GP',['Todos os GPs']+lista_gps)
-    st.dataframe(df if gp_filtro=='Todos os GPs' else df.loc[df['GP']==gp_filtro],width='stretch',hide_index=True)
+    st.dataframe(df if gp_filtro=='Todos os GPs' else df.loc[df['GP']==gp_filtro],use_container_width=True,hide_index=True)
     secao('EDIÇÃO','Ajustar palpite de participante')
     usuario = st.selectbox('Participante',['']+participantes,key='adm_usuario')
     gp,tipo = seletor_etapa('adm',lista_gps)
@@ -606,7 +609,7 @@ def admin_historico():
     if df.empty:
         st.info('Nenhum evento com esses filtros.')
     else:
-        st.dataframe(df.iloc[::-1],width='stretch',hide_index=True)
+        st.dataframe(df.iloc[::-1],use_container_width=True,hide_index=True)
 
 
 def admin_gabarito():
@@ -628,7 +631,7 @@ def admin_gabaritos_salvos():
     if df.empty:
         st.info('Nenhum gabarito cadastrado.')
     else:
-        st.dataframe(df.dropna(how='all',axis=1),width='stretch',hide_index=True)
+        st.dataframe(df.dropna(how='all',axis=1),use_container_width=True,hide_index=True)
 
 
 def admin_excluir():
@@ -680,7 +683,7 @@ def main():
     with st.sidebar:
         st.markdown('### Central do campeonato')
         st.caption('O cache de leitura expira após 20 segundos; os dados são renovados na próxima interação.')
-        if st.button('Atualizar dados agora',width='stretch'):
+        if st.button('Atualizar dados agora',use_container_width=True):
             _ler_dados_cache.clear()
             st.rerun()
         with st.expander('Como funciona a pontuação'):
