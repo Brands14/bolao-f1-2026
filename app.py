@@ -1,161 +1,37 @@
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-import pytz
-import os
-import time
-import urllib.request
-import urllib.error
-import json
+
 import base64
+import hmac
 import io
+import json
+import logging
+import os
 import smtplib
-from email.mime.text import MIMEText
+import urllib.error
+import urllib.request
+from datetime import datetime
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from html import escape
+from urllib.parse import quote
 
-# 1. Configurações Iniciais da Página
-st.set_page_config(
-    page_title="Bolão F1 2026 — Premium Edition",
-    page_icon="🏎️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+import pandas as pd
+import pytz
+import streamlit as st
 
-# 🚨 Configurações do Repositório do GitHub
-GITHUB_USER = "Brands14" 
+logger = logging.getLogger(__name__)
+
+GITHUB_USER = "Brands14"
+
 GITHUB_REPO = "bolao-f1-2026"
+
 EMAIL_ADMIN = "palpitesf12026@gmail.com"
 
-# Puxa as chaves de acesso
-try:
-    GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or st.secrets["GITHUB_TOKEN"]
-    SENHA_EMAIL = os.environ.get("SENHA_EMAIL") or st.secrets["SENHA_EMAIL"]
-except:
-    GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-    SENHA_EMAIL = os.environ.get("SENHA_EMAIL")
+ARQUIVO_DADOS = "palpites_permanentes_2026.csv"
 
-if not GITHUB_TOKEN:
-    st.error("Erro Crítico: A variável GITHUB_TOKEN não foi encontrada nas configurações de ambiente.")
-    st.stop()
-
-ARQUIVO_DADOS = "palpites_permanentes_2026.csv" 
 ARQUIVO_GABARITOS = "gabaritos_permanentes_2026.csv"
+
 ARQUIVO_HISTORICO = "historico_alteracoes_2026.csv"
 
-# URL do seu vídeo hospedado diretamente no seu GitHub
-URL_VIDEO_GITHUB = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/f1_bg.mp4"
-
-# --- CSS CUSTOMIZADO ---
-st.markdown(f"""
-<style>
-    /* Estilização Geral F1 Dark */
-    .stApp {{
-        background-color: #0E0E10;
-        color: #F3F4F6;
-    }}
-    
-    /* Hero Container com Vídeo de Fundo */
-    .hero-container {{
-        position: relative;
-        width: 100%;
-        height: 380px;
-        border-radius: 20px;
-        overflow: hidden;
-        margin-bottom: 25px;
-        border: 1px solid #252525;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        background: #151515;
-    }}
-    .hero-video {{
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        min-width: 100%;
-        min-height: 100%;
-        width: auto;
-        height: auto;
-        z-index: 0;
-        transform: translate(-50%, -50%);
-        object-fit: cover;
-        filter: brightness(1) contrast(1.1);
-    }}
-    .hero-overlay {{
-        position: relative;
-        z-index: 1;
-        padding: 35px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        height: 100%;
-        background: linear-gradient(90deg, rgba(14,14,16,0.92) 0%, rgba(14,14,16,0.3) 100%);
-    }}
-    .hero-title {{
-        font-size: 2.8rem;
-        font-weight: 900;
-        letter-spacing: -1px;
-        color: #FFFFFF;
-        margin: 0;
-        text-transform: uppercase;
-    }}
-    .hero-subtitle {{
-        color: #E10600;
-        font-size: 1.2rem;
-        font-weight: 700;
-        margin-top: 5px;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-    }}
-    
-    /* Customização das Abas */
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 8px;
-        background-color: #151515;
-        padding: 8px;
-        border-radius: 14px;
-        border: 1px solid #252525;
-    }}
-    .stTabs [data-baseweb="tab"] {{
-        height: 45px;
-        border-radius: 10px;
-        color: #9CA3AF;
-        font-weight: 600;
-        border: none;
-    }}
-    .stTabs [aria-selected="true"] {{
-        background-color: #E10600 !important;
-        color: #FFFFFF !important;
-    }}
-    
-    /* Inputs e Botões */
-    div[data-baseweb="select"] > div {{
-        background-color: #151515 !important;
-        border-color: #252525 !important;
-        border-radius: 10px !important;
-        color: #FFFFFF !important;
-    }}
-    .stButton > button {{
-        border-radius: 12px !important;
-        font-weight: 700 !important;
-        transition: all 0.2s ease-in-out !important;
-    }}
-    .stButton > button:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(225, 6, 0, 0.4);
-    }}
-</style>
-
-<div class="hero-container">
-    <video autoplay loop muted playsinline class="hero-video">
-        <source src="{URL_VIDEO_GITHUB}" type="video/mp4">
-    </video>
-    <div class="hero-overlay">
-        <h1 class="hero-title">BOLÃO F1 2026</h1>
-        <div class="hero-subtitle">🏁 Campeonato Oficial de Palpites</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# 2. Dados e Estruturas Base
 participantes = [
     "Alaerte Fleury", "César Gaudie", "Delvânia Belo", "Emilio Jacinto", 
     "Fabrício Abe", "Fausto Fleury", "Fernanda Fleury", "Flávio Soares", 
@@ -210,10 +86,9 @@ pilotos = [
     "Gabriel Bortoleto", "Nico Hülkenberg",
     "Alex Albon", "Carlos Sainz",
     "Pierre Gasly", "Franco Colapinto",
-    "Oliver Bearman", "Ryo Hirakawa",
+    "Oliver Bearman", "Esteban Ocon",
     "Liam Lawson", "Arvid Lindblad",
     "Sergio Pérez", "Valtteri Bottas",
-    "Esteban Ocon",
     "Nenhum / Outro"
 ]
 
@@ -226,583 +101,598 @@ lista_gps = [
 ]
 
 sprint_gps = ["China", "Miami", "Canadá", "Reino Unido", "Holanda", "Singapura"]
-fuso_br = pytz.timezone('America/Sao_Paulo')
 
-# 3. Motor de Dados GitHub API
-def ler_dados(arquivo):
-    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{arquivo}"
-    req = urllib.request.Request(url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
+SENHA_ADMIN_LEGADA = 'fleury1475'
+fuso_br = pytz.timezone('America/Sao_Paulo')
+URL_VIDEO_GITHUB = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/f1_bg.mp4"
+EQUIPE_POR_USUARIO = {membro: equipe for equipe, membros in equipes.items() for membro in membros}
+INDICE_PILOTOS = {nome: i for i, nome in enumerate(pilotos)}
+CAMPOS_PALPITE = ['Pole'] + [f'P{i}' for i in range(1, 11)] + [
+    'VoltaRapida', 'PrimeiroAbandono', 'MaisUltrapassagens']
+SESSOES = ['Classificação Principal (Pole)', 'Corrida Principal', 'Qualy Sprint (Pole)', 'Corrida Sprint']
+PONTOS_PRINCIPAL = dict(zip([f'P{i}' for i in range(1, 11)], [150,125,100,85,70,60,50,40,25,15]))
+PONTOS_PRINCIPAL.update(VoltaRapida=75, PrimeiroAbandono=200, MaisUltrapassagens=75)
+PONTOS_SPRINT = dict(zip([f'P{i}' for i in range(1, 9)], [80,70,60,50,40,30,20,10]))
+ROTULOS = {'Pole': 'Pole position', 'VoltaRapida': 'Melhor volta',
+           'PrimeiroAbandono': '1º abandono', 'MaisUltrapassagens': 'Mais ultrapassagens'}
+ROTULOS.update({f'P{i}': f'{i}º colocado' for i in range(1,11)})
+
+
+def configuracao(nome, padrao=None):
+    valor = os.environ.get(nome)
+    if valor:
+        return valor
     try:
-        with urllib.request.urlopen(req) as response:
+        return st.secrets.get(nome, padrao)
+    except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
+        return padrao
+
+
+GITHUB_TOKEN = configuracao('GITHUB_TOKEN')
+SENHA_EMAIL = configuracao('SENHA_EMAIL')
+
+
+def _url_arquivo(arquivo):
+    return f'https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{quote(arquivo, safe="/")}'
+
+
+def _headers():
+    return {'Authorization': f'token {GITHUB_TOKEN}', 'Content-Type': 'application/json',
+            'User-Agent': 'BolaoF1-App', 'Accept': 'application/vnd.github+json'}
+
+
+def _ler_dados_remotos(arquivo):
+    """Leitura fresca para escritas: falhas de acesso não são tratadas como CSV vazio."""
+    req = urllib.request.Request(_url_arquivo(arquivo), headers=_headers())
+    try:
+        with urllib.request.urlopen(req, timeout=15) as response:
             data = json.loads(response.read().decode())
-            content = base64.b64decode(data['content']).decode('utf-8')
-            return pd.read_csv(io.StringIO(content)), data['sha']
-    except urllib.error.HTTPError:
-        return pd.DataFrame(), None
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return pd.DataFrame(), None
+        raise
+    conteudo = base64.b64decode(data['content']).decode('utf-8-sig')
+    try:
+        df = pd.read_csv(io.StringIO(conteudo))
+    except pd.errors.EmptyDataError:
+        df = pd.DataFrame()
+    return df, data['sha']
+
+
+@st.cache_data(ttl=20, max_entries=8, show_spinner=False)
+def _ler_dados_cache(arquivo):
+    return _ler_dados_remotos(arquivo)
+
+
+def ler_dados(arquivo):
+    return _ler_dados_cache(arquivo)
+
+
+def _escrever_csv(arquivo, df, sha, mensagem):
+    payload = {'message': mensagem, 'content': base64.b64encode(df.to_csv(index=False).encode()).decode()}
+    if sha:
+        payload['sha'] = sha
+    req = urllib.request.Request(_url_arquivo(arquivo), data=json.dumps(payload).encode(),
+                                 headers=_headers(), method='PUT')
+    with urllib.request.urlopen(req, timeout=15) as response:
+        sucesso = response.status in (200, 201)
+    if sucesso:
+        _ler_dados_cache.clear(arquivo)
+    return sucesso
+
+
+def _atualizar_csv(arquivo, transformar, mensagem):
+    """Em conflito de SHA, relê e reaplica a operação sobre a versão mais nova."""
+    for tentativa in range(3):
+        df, sha = _ler_dados_remotos(arquivo)
+        novo_df, contexto = transformar(df)
+        try:
+            return _escrever_csv(arquivo, novo_df, sha, mensagem), contexto
+        except urllib.error.HTTPError as exc:
+            if exc.code != 409 or tentativa == 2:
+                raise
+    raise RuntimeError('Não foi possível concluir a atualização concorrente.')
+
+
+def _mascara_registro(df, dados):
+    chaves = ['GP', 'Tipo'] + (['Usuario'] if 'Usuario' in dados else [])
+    return df[chaves].eq(pd.Series({chave: dados[chave] for chave in chaves})).all(axis=1)
+
 
 def registrar_historico(usuario, gp, tipo, acao):
-    agora_br = datetime.now(fuso_br)
-    log_entry = {
-        "Data_Hora": agora_br.strftime('%d/%m/%Y %H:%M:%S'),
-        "Usuario": usuario,
-        "GP": gp,
-        "Tipo": tipo,
-        "Mensagem": f"O participante {usuario} {acao} seu palpite no GP de {gp} ({tipo}) às {agora_br.strftime('%H:%M:%S')} de {agora_br.strftime('%d/%m/%Y')}."
-    }
-    
-    df_hist, sha_hist = ler_dados(ARQUIVO_HISTORICO)
-    df_novo_hist = pd.DataFrame([log_entry])
-    df_final_hist = pd.concat([df_hist, df_novo_hist], ignore_index=True) if not df_hist.empty else df_novo_hist
-    
-    conteudo_csv = df_final_hist.to_csv(index=False)
-    conteudo_b64 = base64.b64encode(conteudo_csv.encode()).decode()
-    
-    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{ARQUIVO_HISTORICO}"
-    payload = {
-        "message": f"Log de histórico: {usuario} - {gp}",
-        "content": conteudo_b64,
-        "sha": sha_hist if sha_hist else None
-    }
-    headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
-        "Content-Type": "application/json",
-        "User-Agent": "BolaoF1-App"
-    }
+    agora = datetime.now(fuso_br)
+    registro = {'Data_Hora': agora.strftime('%d/%m/%Y %H:%M:%S'), 'Usuario': usuario,
+                'GP': gp, 'Tipo': tipo,
+                'Mensagem': f'O participante {usuario} {acao} seu palpite no GP de {gp} ({tipo}) às {agora:%H:%M:%S} de {agora:%d/%m/%Y}.'}
+    def adicionar(df):
+        return pd.concat([df, pd.DataFrame([registro])], ignore_index=True), None
     try:
-        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers, method='PUT')
-        urllib.request.urlopen(req, timeout=10)
-    except Exception as e:
-        print(f"Erro ao salvar log de historico: {e}")
+        ok, _ = _atualizar_csv(ARQUIVO_HISTORICO, adicionar, f'Log de histórico: {usuario} - {gp}')
+        if not ok:
+            st.warning('Palpite salvo, mas o histórico não pôde ser atualizado.')
+    except Exception:
+        logger.exception('Falha ao registrar histórico')
+        st.warning('Palpite salvo, mas o histórico não pôde ser atualizado.')
+
 
 def guardar_dados(novos_dados, nome_arquivo, eh_edicao_admin=False):
-    df_atual, sha = ler_dados(nome_arquivo)
-    df_novo = pd.DataFrame([novos_dados])
-    
-    if not df_atual.empty:
-        if "Usuario" in novos_dados:
-            condicao_existente = (
-                (df_atual['Usuario'] == novos_dados['Usuario']) & 
-                (df_atual['GP'] == novos_dados['GP']) & 
-                (df_atual['Tipo'] == novos_dados['Tipo'])
-            )
-            eh_alteracao = df_atual[condicao_existente].shape[0] > 0
-            df_atual = df_atual[~condicao_existente]
-        else:
-            condicao_existente = (
-                (df_atual['GP'] == novos_dados['GP']) & 
-                (df_atual['Tipo'] == novos_dados['Tipo'])
-            )
-            eh_alteracao = False
-            df_atual = df_atual[~condicao_existente]
-
-        df_final = pd.concat([df_atual, df_novo], ignore_index=True)
-    else:
-        df_final = df_novo
-        eh_alteracao = False
-
-    conteudo_csv = df_final.to_csv(index=False)
-    conteudo_b64 = base64.b64encode(conteudo_csv.encode()).decode()
-    
-    if "Usuario" in novos_dados:
-        msg_log = f"Atualizado palpite: {novos_dados['Usuario']} - {novos_dados['GP']} ({novos_dados['Tipo']})"
-        acao_log = "alterou (pelo Admin)" if eh_edicao_admin else ("alterou" if eh_alteracao else "enviou")
-        registrar_historico(novos_dados['Usuario'], novos_dados['GP'], novos_dados['Tipo'], acao_log)
-    else:
-        msg_log = f"Atualizado Gabarito: {novos_dados.get('GP', 'Oficial')} ({novos_dados.get('Tipo', '')})"
-    
-    url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{nome_arquivo}"
-    payload = {
-        "message": msg_log,
-        "content": conteudo_b64,
-        "sha": sha if sha else None
-    }
-    headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
-        "Content-Type": "application/json",
-        "User-Agent": "BolaoF1-App"
-    }
+    def substituir(df):
+        mascara = _mascara_registro(df, novos_dados) if not df.empty else pd.Series(False, index=df.index)
+        alteracao = bool(mascara.any()) and 'Usuario' in novos_dados
+        return pd.concat([df.loc[~mascara], pd.DataFrame([novos_dados])], ignore_index=True), alteracao
+    mensagem = (f"Atualizado palpite: {novos_dados['Usuario']} - {novos_dados['GP']} ({novos_dados['Tipo']})"
+                if 'Usuario' in novos_dados else
+                f"Atualizado Gabarito: {novos_dados.get('GP', 'Oficial')} ({novos_dados.get('Tipo', '')})")
     try:
-        data = json.dumps(payload).encode()
-        req = urllib.request.Request(url, data=data, headers=headers, method='PUT')
-        with urllib.request.urlopen(req, timeout=15) as response:
-            return True
-    except Exception as e:
-        st.error(f"Erro ao salvar dados no GitHub: {e}")
+        sucesso, alteracao = _atualizar_csv(nome_arquivo, substituir, mensagem)
+    except Exception:
+        logger.exception('Falha ao salvar CSV')
+        st.error('Não foi possível salvar no GitHub. Confira a conexão e as permissões e tente novamente.')
         return False
+    if sucesso and 'Usuario' in novos_dados:
+        acao = 'alterou (pelo Admin)' if eh_edicao_admin else ('alterou' if alteracao else 'enviou')
+        registrar_historico(novos_dados['Usuario'], novos_dados['GP'], novos_dados['Tipo'], acao)
+    return sucesso
+
 
 def deletar_registro_github(arquivo, mascara_filtro):
-    df_atual, sha = ler_dados(arquivo)
-    if not df_atual.empty:
-        df_final = df_atual[mascara_filtro]
-        csv_content = df_final.to_csv(index=False)
-        encoded_content = base64.b64encode(csv_content.encode('utf-8')).decode('utf-8')
-        url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/{arquivo}"
-        payload = {
-            "message": f"Removendo registro: {arquivo}",
-            "content": encoded_content,
-            "sha": sha
-        }
-        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={
-            "Authorization": f"token {GITHUB_TOKEN}",
-            "Content-Type": "application/json"
-        }, method="PUT")
-        try:
-            with urllib.request.urlopen(req) as response:
-                return response.status in [200, 201]
-        except:
-            return False
-    return False
-
-def enviar_recibo_email(dados, email_destino):
-    remetente = EMAIL_ADMIN
-    destinatarios = [remetente, email_destino]
-    
-    msg = MIMEMultipart()
-    msg['From'] = remetente
-    msg['To'] = ", ".join(destinatarios)
-    msg['Subject'] = f"🏁 Recibo de Palpite F1 - {dados['Usuario']} - GP {dados['GP']} ({dados['Tipo']})"
-    
-    corpo = f"""
-    Olá {dados['Usuario']},
-    
-    Seu palpite foi registrado/atualizado com sucesso no Bolão F1 2026!
-    
-    --- REGISTRO OFICIAL ---
-    Grande Prêmio: {dados['GP']}
-    Sessão: {dados['Tipo']}
-    Data/Hora do Envio: {dados['Data_Envio']}
-    
-    --- DETALHES DO SEU PALPITE ---
-    """
-    if "Pole" in dados['Tipo']:
-        corpo += f"Pole Position: {dados.get('Pole', '')}\n"
-    elif "Corrida Principal" == dados['Tipo']:
-        corpo += f"1º Colocado: {dados.get('P1', '')}\n2º Colocado: {dados.get('P2', '')}\n3º Colocado: {dados.get('P3', '')}\n"
-        corpo += f"4º Colocado: {dados.get('P4', '')}\n5º Colocado: {dados.get('P5', '')}\n6º Colocado: {dados.get('P6', '')}\n"
-        corpo += f"7º Colocado: {dados.get('P7', '')}\n8º Colocado: {dados.get('P8', '')}\n9º Colocado: {dados.get('P9', '')}\n10º Colocado: {dados.get('P10', '')}\n"
-        corpo += f"\nMelhor Volta: {dados.get('VoltaRapida', '')}\n1º Abandono: {dados.get('PrimeiroAbandono', '')}\nMais Ultrapassagens: {dados.get('MaisUltrapassagens', '')}\n"
-    elif "Corrida Sprint" == dados['Tipo']:
-        corpo += f"1º Colocado: {dados.get('P1', '')}\n2º Colocado: {dados.get('P2', '')}\n3º Colocado: {dados.get('P3', '')}\n4º Colocado: {dados.get('P4', '')}\n"
-        corpo += f"5º Colocado: {dados.get('P5', '')}\n6º Colocado: {dados.get('P6', '')}\n7º Colocado: {dados.get('P7', '')}\n8º Colocado: {dados.get('P8', '')}\n"
-        
-    corpo += "\n\nDireção de Prova — Bolão F1 2026"
-    msg.attach(MIMEText(corpo, 'plain'))
-    
+    """Mantém a máscara de retenção da API original; recusa máscaras obsoletas."""
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=20)
-        server.starttls()
-        server.login(remetente, SENHA_EMAIL)
-        server.send_message(msg)
-        server.quit()
-        return True
-    except:
+        _, snapshot_sha = ler_dados(arquivo)
+        atual, sha = _ler_dados_remotos(arquivo)
+        if atual.empty or sha != snapshot_sha or len(mascara_filtro) != len(atual):
+            st.warning('Os dados mudaram. Atualize a tela antes de excluir.')
+            _ler_dados_cache.clear(arquivo)
+            return False
+        if isinstance(mascara_filtro, pd.Series) and not mascara_filtro.index.equals(atual.index):
+            return False
+        return _escrever_csv(arquivo, atual.loc[mascara_filtro], sha, f'Removendo registro: {arquivo}')
+    except Exception:
+        logger.exception('Falha ao excluir registro')
+        st.error('Não foi possível excluir. Atualize os dados e tente novamente.')
         return False
 
-# 4. Cálculo da Pontuação
+
+def campos_sessao(tipo):
+    if 'Pole' in tipo:
+        return ['Pole']
+    if tipo == 'Corrida Principal':
+        return list(PONTOS_PRINCIPAL)
+    if tipo == 'Corrida Sprint':
+        return list(PONTOS_SPRINT)
+    return []
+
+
+def enviar_recibo_email(dados, email_destino):
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_ADMIN
+    msg['To'] = ', '.join([EMAIL_ADMIN, email_destino])
+    msg['Subject'] = f"🏁 Recibo de Palpite F1 - {dados['Usuario']} - GP {dados['GP']} ({dados['Tipo']})"
+    corpo = (f"Olá {dados['Usuario']},\n\nSeu palpite foi registrado/atualizado com sucesso no Bolão F1 2026!\n\n"
+             f"--- REGISTRO OFICIAL ---\nGrande Prêmio: {dados['GP']}\nSessão: {dados['Tipo']}\n"
+             f"Data/Hora do Envio: {dados['Data_Envio']}\n\n--- DETALHES DO SEU PALPITE ---\n")
+    corpo += '\n'.join(f'{ROTULOS[campo]}: {dados.get(campo, "")}' for campo in campos_sessao(dados['Tipo']))
+    msg.attach(MIMEText(corpo + '\n\nDireção de Prova — Bolão F1 2026', 'plain', 'utf-8'))
+    try:
+        with smtplib.SMTP('smtp.gmail.com', 587, timeout=20) as server:
+            server.starttls()
+            server.login(EMAIL_ADMIN, SENHA_EMAIL)
+            server.send_message(msg)
+        return True
+    except Exception:
+        logger.exception('Falha ao enviar recibo')
+        return False
+
+
 def check_ponto(palpite, gabarito, chave, valor_pontos):
     val_p = str(palpite.get(chave, '')).strip()
     val_g = str(gabarito.get(chave, '')).strip()
     return valor_pontos if (val_p and val_p == val_g) else 0
 
-def calcular_pontos_sessao(palpite, gabarito):
-    pontos = 0
-    tipo = palpite.get('Tipo', '')
-    
-    if "Classificação" in tipo or "Qualy Sprint" in tipo:
-        pontos += check_ponto(palpite, gabarito, 'Pole', 100)
-    elif tipo == "Corrida Principal":
-        pontos += check_ponto(palpite, gabarito, 'P1', 150)
-        pontos += check_ponto(palpite, gabarito, 'P2', 125)
-        pontos += check_ponto(palpite, gabarito, 'P3', 100)
-        pontos += check_ponto(palpite, gabarito, 'P4', 85)
-        pontos += check_ponto(palpite, gabarito, 'P5', 70)
-        pontos += check_ponto(palpite, gabarito, 'P6', 60)
-        pontos += check_ponto(palpite, gabarito, 'P7', 50)
-        pontos += check_ponto(palpite, gabarito, 'P8', 40)
-        pontos += check_ponto(palpite, gabarito, 'P9', 25)
-        pontos += check_ponto(palpite, gabarito, 'P10', 15)
-        pontos += check_ponto(palpite, gabarito, 'VoltaRapida', 75)
-        pontos += check_ponto(palpite, gabarito, 'PrimeiroAbandono', 200)
-        pontos += check_ponto(palpite, gabarito, 'MaisUltrapassagens', 75)
-        
-        top10_p = [str(palpite.get(f'P{i}', '')).strip() for i in range(1, 11)]
-        top10_g = [str(gabarito.get(f'P{i}', '')).strip() for i in range(1, 11)]
-        if all(top10_p) and all(top10_g):
-            if top10_p == top10_g: pontos += 600
-            elif top10_p[:5] == top10_g[:5]: pontos += 450
-            elif top10_p[:3] == top10_g[:3]: pontos += 300
-    elif tipo == "Corrida Sprint":
-        pontos += check_ponto(palpite, gabarito, 'P1', 80)
-        pontos += check_ponto(palpite, gabarito, 'P2', 70)
-        pontos += check_ponto(palpite, gabarito, 'P3', 60)
-        pontos += check_ponto(palpite, gabarito, 'P4', 50)
-        pontos += check_ponto(palpite, gabarito, 'P5', 40)
-        pontos += check_ponto(palpite, gabarito, 'P6', 30)
-        pontos += check_ponto(palpite, gabarito, 'P7', 20)
-        pontos += check_ponto(palpite, gabarito, 'P8', 10)
-        
-    return pontos
 
-def exibir_foto_piloto(nome):
-    if nome and nome != "" and nome != "Nenhum / Outro":
-        nome_arquivo = nome.replace(" ", "%20") + ".png"
-        url_foto = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/{nome_arquivo}"
-        st.image(url_foto, width=80)
+def _bonus_principal(palpite, gabarito):
+    top_p = [str(palpite.get(f'P{i}', '')).strip() for i in range(1,11)]
+    top_g = [str(gabarito.get(f'P{i}', '')).strip() for i in range(1,11)]
+    if not (all(top_p) and all(top_g)):
+        return 0
+    return next((bonus for n, bonus in ((10,600),(5,450),(3,300)) if top_p[:n] == top_g[:n]), 0)
+
+
+def calcular_pontos_sessao(palpite, gabarito):
+    tipo = palpite.get('Tipo', '')
+    if 'Classificação' in tipo or 'Qualy Sprint' in tipo:
+        return check_ponto(palpite, gabarito, 'Pole', 100)
+    pesos = {'Corrida Principal': PONTOS_PRINCIPAL, 'Corrida Sprint': PONTOS_SPRINT}.get(tipo, {})
+    pontos = sum(check_ponto(palpite, gabarito, chave, valor) for chave, valor in pesos.items())
+    return pontos + (_bonus_principal(palpite, gabarito) if tipo == 'Corrida Principal' else 0)
+
+
+def processar_resultados(df_palpites, df_gabaritos):
+    """Índice de gabaritos O(G); consulta O(1) por palpite, sem refiltrar o DataFrame."""
+    colunas = ['Usuario','Equipe','Pontos','GP']
+    if df_palpites.empty or df_gabaritos.empty:
+        return pd.DataFrame(columns=colunas)
+    gabaritos = {(r['GP'], r['Tipo']): r for r in
+                 df_gabaritos.drop_duplicates(['GP','Tipo'], keep='last').to_dict('records')}
+    resultados = []
+    for palpite in df_palpites.drop_duplicates(['Usuario','GP','Tipo'], keep='last').to_dict('records'):
+        gabarito = gabaritos.get((palpite['GP'], palpite['Tipo']))
+        if gabarito is not None:
+            resultados.append({'Usuario': palpite['Usuario'],
+                               'Equipe': EQUIPE_POR_USUARIO.get(palpite['Usuario'], 'Sem Equipe'),
+                               'Pontos': calcular_pontos_sessao(palpite,gabarito), 'GP': palpite['GP']})
+    return pd.DataFrame(resultados, columns=colunas)
+
 
 def index_piloto(val):
-    val_str = str(val).strip() if pd.notna(val) else ""
-    return pilotos.index(val_str) if val_str in pilotos else 0
+    return INDICE_PILOTOS.get(str(val).strip() if pd.notna(val) else '', 0)
 
-# 5. Navegação Lateral
-st.sidebar.markdown("## 🏎️ Menu de Navegação")
-menu = st.sidebar.radio("Ir para:", ["Enviar Palpite", "Meus Palpites", "Classificações", "Administrador"])
 
-# --- ÁREA: ENVIAR PALPITE ---
-if menu == "Enviar Palpite":
-    usuario_logado = st.sidebar.selectbox("Quem está a palpitar?", [""] + participantes)
-    
-    if usuario_logado:
-        equipe_usuario = next((equipe for equipe, membros in equipes.items() if usuario_logado in membros), "Sem Equipe")
-        
-        st.markdown(f"### 🏎️ Piloto: **{usuario_logado}** | <span style='color:#E10600'>{equipe_usuario}</span>", unsafe_allow_html=True)
+def exibir_foto_piloto(nome):
+    if nome and nome != 'Nenhum / Outro':
+        st.image(f'https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/fotos/{quote(nome)}.png', width=64)
 
-        col_gp, col_tipo = st.columns(2)
-        with col_gp:
-            df_gabaritos, _ = ler_dados(ARQUIVO_GABARITOS)
-            gps_ja_realizados = df_gabaritos['GP'].unique().tolist() if not df_gabaritos.empty else []
-            lista_gps_disponiveis = [gp for gp in lista_gps if gp not in gps_ja_realizados]
-            gp_selecionado = st.selectbox("Selecione o Grande Prêmio:", lista_gps_disponiveis)
 
-        with col_tipo:
-            sessao_opcoes = ["Classificação Principal (Pole)", "Corrida Principal"]
-            if gp_selecionado in sprint_gps:
-                sessao_opcoes = ["Qualy Sprint (Pole)", "Corrida Sprint", "Classificação Principal (Pole)", "Corrida Principal"]
-            tipo_sessao = st.selectbox("Selecione a Sessão:", sessao_opcoes)
+CSS = '''
+<style>
+:root {color-scheme:dark; --red:#ff463e; --muted:#a4adbd; --line:#283143;}
+.stApp {background:#0a101c; color:#edf2fa;}
+header[data-testid="stHeader"] {background:rgba(10,16,28,.9);}
+.block-container {max-width:1280px; padding-top:2rem; padding-bottom:3rem;}
+h1,h2,h3 {letter-spacing:-.035em; color:#f4f7fd!important;}
+p,label {color:inherit;}
+[data-testid="stCaptionContainer"] {color:#a4adbd;}
+[data-testid="stSidebar"] {background:#101827; border-right:1px solid var(--line);}
+.brand {display:flex; align-items:center; gap:12px; margin:0 0 24px;}
+.brand-mark {background:#ff463e; border-radius:10px 3px 10px 3px; padding:6px 12px; font-weight:950; font-size:24px; color:white; font-style:italic;}
+.brand-name {font-size:14px; font-weight:800; letter-spacing:.13em;}
+.brand-name small {display:block; font-size:10px; color:#9aa6bd; letter-spacing:.2em; margin-top:3px;}
+.hero {position:relative; overflow:hidden; border:1px solid #303b51; border-radius:24px; background:linear-gradient(110deg,#18253c,#101a2d); margin:18px 0 24px;}
+.hero video {position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.24;}
+.hero-body {position:relative; padding:38px 42px; background:linear-gradient(90deg,rgba(12,21,38,.94),rgba(12,21,38,.15));}
+.eyebrow {font-size:11px; font-weight:800; letter-spacing:.2em; color:#ff776e; text-transform:uppercase; margin-bottom:12px;}
+.hero h1 {font-size:clamp(2rem,4.6vw,3.7rem); font-weight:900; margin:0; padding:0; line-height:1.08; max-width:700px;}
+.hero p {color:#c0cadb; margin:16px 0 22px; max-width:570px; font-size:15px;}
+.pill {display:inline-block; font-size:11px; letter-spacing:.08em; border:1px solid #4d5668; background:#172339; border-radius:999px; padding:6px 12px; margin-right:6px; color:#e4eaf5;}
+.section-kicker {color:#7c90b1; font-size:11px; letter-spacing:.18em; text-transform:uppercase; margin:24px 0 8px; font-weight:800;}
+[data-testid="stMetric"] {background:linear-gradient(140deg,#182235,#121b2c); border:1px solid var(--line); border-radius:16px; padding:17px 20px;}
+[data-testid="stMetricLabel"] {color:#b7c2d4; font-size:12px;}
+[data-testid="stMetricValue"] {font-size:29px; font-weight:800; color:#fff;}
+[data-testid="stVerticalBlockBorderWrapper"]>div {border-color:#2b3548!important; border-radius:16px!important;}
+div[data-baseweb="select"]>div, [data-testid="stTextInput"] input {background:#111c2d!important; color:#f2f5fb!important; border-color:#344157!important; border-radius:10px!important;}
+[data-baseweb="popover"] {color-scheme:dark;}
+.stButton>button, .stFormSubmitButton>button, .stDownloadButton>button {border-radius:10px; min-height:44px; font-weight:700; transition:transform .15s,box-shadow .15s;}
+.stButton>button:hover, .stFormSubmitButton>button:hover {transform:translateY(-1px); box-shadow:0 6px 20px #0004; border-color:#ff6860;}
+button[kind="primary"], button[data-testid="stBaseButton-primaryFormSubmit"] {background:#ff463e; border:1px solid #ff463e; color:#fff;}
+[data-testid="stRadio"]>div[role="radiogroup"] {gap:8px; padding:8px; background:#121c2d; border:1px solid var(--line); border-radius:14px; flex-wrap:wrap;}
+[data-testid="stRadio"] label[data-baseweb="radio"] {padding:9px 14px; border-radius:9px; margin:0; background:#182438; cursor:pointer;}
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {background:#ff463e; color:#fff;}
+.stTabs [data-baseweb="tab-list"] {gap:8px; background:#121c2d; padding:8px; border-radius:12px; overflow-x:auto;}
+.stTabs [data-baseweb="tab"] {border-radius:8px; padding:10px 16px; color:#b7c2d4;}
+.stTabs [aria-selected="true"] {background:#263650; color:#fff;}
+.podium {padding:20px; background:linear-gradient(145deg,#1e2c43,#121b2b); border:1px solid #36465e; border-radius:16px; min-height:150px; margin-bottom:16px;}
+.podium .rank {color:#ffad61; font-size:12px; font-weight:800; letter-spacing:.13em;}
+.podium h3 {font-size:19px; margin:10px 0 4px;}
+.podium .score {font-size:27px; font-weight:900; color:#fff;}
+.podium .score small {font-size:12px; color:#a4adbd; font-weight:500;}
+.footer {text-align:center; color:#7c8aa2; font-size:11px; letter-spacing:.06em; margin-top:42px; padding-top:20px; border-top:1px solid #243047;}
+@media(max-width:640px) {.block-container {padding:1.2rem 1rem 2rem;} .hero-body {padding:28px 23px;} .hero h1 {font-size:2rem;} [data-testid="stRadio"] label[data-baseweb="radio"] {padding:7px 9px;} }
+@media(prefers-reduced-motion:reduce) {*,*::before,*::after {transition:none!important; animation:none!important;} .hero video {display:none;}}
+</style>
+'''
 
-        # Carrega palpite anterior se existir
-        df_dados, _ = ler_dados(ARQUIVO_DADOS)
-        palpite_existente = {}
-        if not df_dados.empty:
-            match = df_dados[
-                (df_dados['Usuario'] == usuario_logado) & 
-                (df_dados['GP'] == gp_selecionado) & 
-                (df_dados['Tipo'] == tipo_sessao)
-            ]
-            if not match.empty:
-                palpite_existente = match.iloc[-1].to_dict()
-                st.info("ℹ️ **Você já enviou um palpite para esta sessão.** Os campos foram preenchidos com suas escolhas atuais. Altere o que quiser e grave novamente.")
 
-        st.divider()
-        st.header(f"🏁 {gp_selecionado} — {tipo_sessao}")
+def cabecalho():
+    st.markdown(CSS, unsafe_allow_html=True)
+    st.markdown('<div class="brand"><div class="brand-mark">F1</div><div class="brand-name">BOLÃO 2026<small>SEU PALPITE. SUA DISPUTA.</small></div></div>', unsafe_allow_html=True)
+    return st.radio('Navegação', ['Enviar Palpite','Meus Palpites','Classificações','Administrador'],
+                    horizontal=True, label_visibility='collapsed', key='navegacao')
 
-        pole = p1 = p2 = p3 = p4 = p5 = p6 = p7 = p8 = p9 = p10 = ""
-        v_rapida = p_abandono = m_ultrapassagens = ""
 
-        if "Pole" in tipo_sessao:
-            pole = st.selectbox("Selecione o Pole Position:", pilotos, index=index_piloto(palpite_existente.get('Pole', '')), key="sel_pole")
-            exibir_foto_piloto(pole)
+def hero(titulo, descricao, etiqueta='TEMPORADA 2026'):
+    st.markdown(f'''<div class="hero"><video autoplay loop muted playsinline aria-hidden="true"><source src="{URL_VIDEO_GITHUB}" type="video/mp4"></video>
+    <div class="hero-body"><div class="eyebrow">{escape(etiqueta)}</div><h1>{escape(titulo)}</h1>
+    <p>{escape(descricao)}</p><span class="pill">20 PARTICIPANTES</span><span class="pill">10 EQUIPES</span><span class="pill">UMA DISPUTA</span></div></div>''', unsafe_allow_html=True)
 
-        elif tipo_sessao == "Corrida Principal":
-            c1, c2 = st.columns(2)
-            with c1:
-                p1 = st.selectbox("1º Colocado (Vencedor):", pilotos, index=index_piloto(palpite_existente.get('P1', '')), key="p1"); exibir_foto_piloto(p1)
-                p2 = st.selectbox("2º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P2', '')), key="p2"); exibir_foto_piloto(p2)
-                p3 = st.selectbox("3º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P3', '')), key="p3"); exibir_foto_piloto(p3)
-                p4 = st.selectbox("4º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P4', '')), key="p4"); exibir_foto_piloto(p4)
-                p5 = st.selectbox("5º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P5', '')), key="p5"); exibir_foto_piloto(p5)
-            with c2:
-                p6 = st.selectbox("6º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P6', '')), key="p6"); exibir_foto_piloto(p6)
-                p7 = st.selectbox("7º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P7', '')), key="p7"); exibir_foto_piloto(p7)
-                p8 = st.selectbox("8º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P8', '')), key="p8"); exibir_foto_piloto(p8)
-                p9 = st.selectbox("9º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P9', '')), key="p9"); exibir_foto_piloto(p9)
-                p10 = st.selectbox("10º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P10', '')), key="p10"); exibir_foto_piloto(p10)
-            
-            st.divider()
-            mv_col, ab_col, mu_col = st.columns(3)
-            with mv_col:
-                v_rapida = st.selectbox("Melhor Volta:", pilotos, index=index_piloto(palpite_existente.get('VoltaRapida', '')), key="vr"); exibir_foto_piloto(v_rapida)
-            with ab_col:
-                p_abandono = st.selectbox("1º Abandono:", pilotos, index=index_piloto(palpite_existente.get('PrimeiroAbandono', '')), key="ab"); exibir_foto_piloto(p_abandono)
-            with mu_col:
-                m_ultrapassagens = st.selectbox("Mais Ultrapassagens:", pilotos, index=index_piloto(palpite_existente.get('MaisUltrapassagens', '')), key="mu"); exibir_foto_piloto(m_ultrapassagens)
 
-        elif tipo_sessao == "Corrida Sprint":
-            c1, c2 = st.columns(2)
-            with c1:
-                p1 = st.selectbox("1º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P1', '')), key="s1"); exibir_foto_piloto(p1)
-                p2 = st.selectbox("2º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P2', '')), key="s2"); exibir_foto_piloto(p2)
-                p3 = st.selectbox("3º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P3', '')), key="s3"); exibir_foto_piloto(p3)
-                p4 = st.selectbox("4º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P4', '')), key="s4"); exibir_foto_piloto(p4)
-            with c2:
-                p5 = st.selectbox("5º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P5', '')), key="s5"); exibir_foto_piloto(p5)
-                p6 = st.selectbox("6º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P6', '')), key="s6"); exibir_foto_piloto(p6)
-                p7 = st.selectbox("7º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P7', '')), key="s7"); exibir_foto_piloto(p7)
-                p8 = st.selectbox("8º Colocado:", pilotos, index=index_piloto(palpite_existente.get('P8', '')), key="s8"); exibir_foto_piloto(p8)
+def secao(numero, titulo):
+    st.markdown(f'<div class="section-kicker">{escape(numero)}</div>', unsafe_allow_html=True)
+    st.subheader(titulo)
 
-        with st.form("confirmar_palpite"):
-            st.write("---")
-            email_confirmacao = st.text_input("Confirme seu e-mail cadastrado para validar o envio:", type="password")
-            
-            if st.form_submit_button("GRAVAR MEU PALPITE FINAL 🏎️"):
-                if email_confirmacao.lower() == emails_autorizados.get(usuario_logado, "").lower():
-                    dados_palpite = {
-                        "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S'),
-                        "GP": gp_selecionado,
-                        "Tipo": tipo_sessao,
-                        "Usuario": usuario_logado,
-                        "Equipe": equipe_usuario,
-                        "Pole": pole,
-                        "P1": p1, "P2": p2, "P3": p3, "P4": p4, "P5": p5,
-                        "P6": p6, "P7": p7, "P8": p8, "P9": p9, "P10": p10,
-                        "VoltaRapida": v_rapida,
-                        "PrimeiroAbandono": p_abandono,
-                        "MaisUltrapassagens": m_ultrapassagens
-                    }
-                    if guardar_dados(dados_palpite, ARQUIVO_DADOS):
-                        enviar_recibo_email(dados_palpite, email_confirmacao)
-                        st.toast(f'Palpite Registrado com Sucesso! Acelera, {usuario_logado}! 🏎️💨', icon='🏁')
-                        st.success(f"🏁 Maravilha, {usuario_logado}! Seu palpite para o GP de {gp_selecionado} foi gravado/atualizado.")
-                    else:
-                        st.error("Erro técnico ao conectar ao servidor. Tente novamente.")
-                else:
-                    st.error("E-mail não confere com o cadastrado para este participante.")
 
-# --- ÁREA: MEUS PALPITES ---
-elif menu == "Meus Palpites":
-    st.header("🕵️ Meu Histórico de Palpites")
-    usuario_consulta = st.selectbox("Selecione o seu nome:", [""] + participantes)
-    
-    if usuario_consulta:
-        email_consulta = st.text_input("Digite o seu E-mail cadastrado para abrir o cofre:", type="password")
-        if st.button("Buscar Meus Palpites 🔍"):
-            if email_consulta.strip().lower() == emails_autorizados.get(usuario_consulta, "").strip().lower():
-                df_todos, _ = ler_dados(ARQUIVO_DADOS)
-                if not df_todos.empty:
-                    meus_dados = df_todos[df_todos['Usuario'] == usuario_consulta]
-                    if not meus_dados.empty:
-                        st.success("Histórico localizado!")
-                        meus_dados_ultimos = meus_dados.drop_duplicates(subset=['GP', 'Tipo'], keep='last')
-                        st.dataframe(meus_dados_ultimos.drop(columns=['Usuario', 'Equipe']), use_container_width=True)
-                    else:
-                        st.warning("Nenhum palpite enviado ainda.")
-                else:
-                    st.info("Banco de dados vazio.")
-            else:
-                st.error("Acesso negado: E-mail incorreto.")
+def sessoes_disponiveis(gp):
+    return SESSOES if gp in sprint_gps else SESSOES[:2]
 
-# --- ÁREA: CLASSIFICAÇÕES ---
-elif menu == "Classificações":
-    st.header("🏆 Classificação Geral do Campeonato")
-    df_palpites, _ = ler_dados(ARQUIVO_DADOS)
-    df_gabaritos, _ = ler_dados(ARQUIVO_GABARITOS)
-    
-    if not df_palpites.empty and not df_gabaritos.empty:
-        df_palpites_validos = df_palpites.drop_duplicates(subset=['Usuario', 'GP', 'Tipo'], keep='last')
-        resultados = []
-        for _, row_p in df_palpites_validos.iterrows():
-            gp = row_p.get('GP', '')
-            tipo = row_p.get('Tipo', '')
-            usuario = row_p['Usuario']
-            equipe_atual = next((eq for eq, membros in equipes.items() if usuario in membros), "Sem Equipe")
-            
-            gabarito_match = df_gabaritos[(df_gabaritos['GP'] == gp) & (df_gabaritos['Tipo'] == tipo)]
-            if not gabarito_match.empty:
-                pontos = calcular_pontos_sessao(row_p, gabarito_match.iloc[-1])
-                resultados.append({"Usuario": usuario, "Equipe": equipe_atual, "Pontos": pontos, "GP": gp})
-        
-        if resultados:
-            df_res = pd.DataFrame(resultados)
-            filtro_gp = st.selectbox("Visualizar Por GP:", ["Geral (Campeonato Completo)"] + lista_gps)
-            if filtro_gp != "Geral (Campeonato Completo)":
-                df_res = df_res[df_res["GP"] == filtro_gp]
-            
-            if not df_res.empty:
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("### 👤 Mundial de Pilotos")
-                    rk_pilotos = df_res.groupby('Usuario')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                    rk_pilotos.index = range(1, len(rk_pilotos) + 1)
-                    st.dataframe(rk_pilotos, use_container_width=True)
-                with col2:
-                    st.markdown("### 🏎️ Mundial de Construtores")
-                    rk_equipes = df_res.groupby('Equipe')['Pontos'].sum().reset_index().sort_values(by='Pontos', ascending=False)
-                    rk_equipes.index = range(1, len(rk_equipes) + 1)
-                    st.dataframe(rk_equipes, use_container_width=True)
 
-# --- ÁREA: ADMINISTRADOR ---
-elif menu == "Administrador":
-    senha = st.sidebar.text_input("Senha do Diretor de Prova:", type="password")
-    
-    if senha == "fleury1475":
-        st.warning("⚠ PAINEL DE CONTROLE ADMINISTRATIVO — ACESSO RESTRITO")
-        
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "🛡️ Auditoria & Edição", 
-            "📜 Log Auditável",
-            "🚩 Gabarito & Pontuação", 
-            "📋 Gabaritos Salvos", 
-            "🗑️ Limpeza de Dados"
-        ])
-        
-        # TAB 1: AUDITORIA E EDIÇÃO
-        with tab1:
-            st.subheader("🛡️ Gerenciador Direto de Palpites")
-            df_aud, _ = ler_dados(ARQUIVO_DADOS)
-            if not df_aud.empty:
-                df_aud_limpo = df_aud.drop_duplicates(subset=['Usuario', 'GP', 'Tipo'], keep='last')
-                flt_gp_aud = st.selectbox("Filtrar Auditoria por GP:", ["Todos os GPs"] + lista_gps)
-                df_view_aud = df_aud_limpo if flt_gp_aud == "Todos os GPs" else df_aud_limpo[df_aud_limpo["GP"] == flt_gp_aud]
-                st.dataframe(df_view_aud, use_container_width=True)
-                
-                st.divider()
-                st.subheader("🛠️ Editar Palpite de Participante")
-                c_usr, c_gp, c_ses = st.columns(3)
-                with c_usr: u_edit = st.selectbox("Participante:", [""] + participantes, key="adm_u")
-                with c_gp: g_edit = st.selectbox("GP:", lista_gps, key="adm_g")
-                with c_ses:
-                    opts_s = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"] if g_edit in sprint_gps else ["Classificação Principal (Pole)", "Corrida Principal"]
-                    s_edit = st.selectbox("Sessão:", opts_s, key="adm_s")
-                
-                if u_edit != "":
-                    match_e = df_aud_limpo[(df_aud_limpo['Usuario'] == u_edit) & (df_aud_limpo['GP'] == g_edit) & (df_aud_limpo['Tipo'] == s_edit)]
-                    p_exist = match_e.iloc[-1].to_dict() if not match_e.empty else {}
-                    eq_u = next((eq for eq, me in equipes.items() if u_edit in me), "Sem Equipe")
-                    
-                    with st.form("f_adm_edit"):
-                        st.markdown(f"**Modificando:** {u_edit} | {g_edit} ({s_edit})")
-                        pole_e = p1_e = p2_e = p3_e = p4_e = p5_e = p6_e = p7_e = p8_e = p9_e = p10_e = ""
-                        vr_e = ab_e = mu_e = ""
-                        
-                        if "Pole" in s_edit:
-                            pole_e = st.selectbox("Pole Position:", pilotos, index=index_piloto(p_exist.get('Pole', '')))
-                        elif s_edit == "Corrida Principal":
-                            col1_e, col2_e = st.columns(2)
-                            with col1_e:
-                                p1_e = st.selectbox("1º Colocado:", pilotos, index=index_piloto(p_exist.get('P1', '')))
-                                p2_e = st.selectbox("2º Colocado:", pilotos, index=index_piloto(p_exist.get('P2', '')))
-                                p3_e = st.selectbox("3º Colocado:", pilotos, index=index_piloto(p_exist.get('P3', '')))
-                                p4_e = st.selectbox("4º Colocado:", pilotos, index=index_piloto(p_exist.get('P4', '')))
-                                p5_e = st.selectbox("5º Colocado:", pilotos, index=index_piloto(p_exist.get('P5', '')))
-                            with col2_e:
-                                p6_e = st.selectbox("6º Colocado:", pilotos, index=index_piloto(p_exist.get('P6', '')))
-                                p7_e = st.selectbox("7º Colocado:", pilotos, index=index_piloto(p_exist.get('P7', '')))
-                                p8_e = st.selectbox("8º Colocado:", pilotos, index=index_piloto(p_exist.get('P8', '')))
-                                p9_e = st.selectbox("9º Colocado:", pilotos, index=index_piloto(p_exist.get('P9', '')))
-                                p10_e = st.selectbox("10º Colocado:", pilotos, index=index_piloto(p_exist.get('P10', '')))
-                            c3_e, c4_e, c5_e = st.columns(3)
-                            with c3_e: vr_e = st.selectbox("Melhor Volta:", pilotos, index=index_piloto(p_exist.get('VoltaRapida', '')))
-                            with c4_e: ab_e = st.selectbox("1º Abandono:", pilotos, index=index_piloto(p_exist.get('PrimeiroAbandono', '')))
-                            with c5_e: mu_e = st.selectbox("Mais Ultrapassagens:", pilotos, index=index_piloto(p_exist.get('MaisUltrapassagens', '')))
-                        
-                        if st.form_submit_button("Salvar Alteração do Admin 🛠️"):
-                            dados_e = {
-                                "Data_Envio": datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S') + " (Admin)",
-                                "GP": g_edit, "Tipo": s_edit, "Usuario": u_edit, "Equipe": eq_u,
-                                "Pole": pole_e, "P1": p1_e, "P2": p2_e, "P3": p3_e, "P4": p4_e, "P5": p5_e,
-                                "P6": p6_e, "P7": p7_e, "P8": p8_e, "P9": p9_e, "P10": p10_e,
-                                "VoltaRapida": vr_e, "PrimeiroAbandono": ab_e, "MaisUltrapassagens": mu_e
-                            }
-                            if guardar_dados(dados_e, ARQUIVO_DADOS, eh_edicao_admin=True):
-                                st.success(f"Palpite de {u_edit} atualizado com sucesso!")
-                                time.sleep(1)
-                                st.rerun()
+def ultimo_registro(df, gp, tipo, usuario=None):
+    if df.empty:
+        return {}
+    dados = {'GP':gp, 'Tipo':tipo}
+    if usuario is not None:
+        dados['Usuario'] = usuario
+    filtrado = df.loc[_mascara_registro(df,dados)]
+    return filtrado.iloc[-1].to_dict() if not filtrado.empty else {}
 
-        # TAB 2: LOG AUDITÁVEL
-        with tab2:
-            st.subheader("📜 Histórico Completo de Alterações e Acessos")
-            df_h, _ = ler_dados(ARQUIVO_HISTORICO)
-            if not df_h.empty:
-                c_f1, c_f2 = st.columns(2)
-                with c_f1: u_flt = st.selectbox("Filtrar por Participante:", ["Todos"] + participantes)
-                with c_f2: g_flt = st.selectbox("Filtrar por GP:", ["Todos"] + lista_gps)
-                
-                df_vh = df_h.copy()
-                if u_flt != "Todos": df_vh = df_vh[df_vh['Usuario'] == u_flt]
-                if g_flt != "Todos": df_vh = df_vh[df_vh['GP'] == g_flt]
-                
-                if not df_vh.empty:
-                    for _, row_h in df_vh.iloc[::-1].iterrows():
-                        st.markdown(f"⏱️ **`[{row_h.get('Data_Hora', '')}]`** — {row_h.get('Mensagem', '')}")
-                else:
-                    st.info("Nenhum evento registrado com esses filtros.")
-            else:
-                st.info("Histórico de alterações vazio.")
 
-        # TAB 3: GABARITOS OFICIAIS
-        with tab3:
-            st.header("🚩 Homologar Resultado Oficial (Gabarito)")
-            col_ga, col_ta = st.columns(2)
-            with col_ga: gp_a = st.selectbox("GP do Gabarito:", lista_gps, key="g_a")
-            opts_a = ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"] if gp_a in sprint_gps else ["Classificação Principal (Pole)", "Corrida Principal"]
-            with col_ta: tp_a = st.selectbox("Sessão:", opts_a, key="t_a")
-            
-            df_ge, _ = ler_dados(ARQUIVO_GABARITOS)
-            m_g = df_ge[(df_ge['GP'] == gp_a) & (df_ge['Tipo'] == tp_a)] if not df_ge.empty else pd.DataFrame()
-            g_ex = m_g.iloc[-1].to_dict() if not m_g.empty else {}
-            
-            with st.form("form_gabarito_oficial"):
-                pole_g = p1_g = p2_g = p3_g = p4_g = p5_g = p6_g = p7_g = p8_g = p9_g = p10_g = ""
-                vr_g = ab_g = mu_g = ""
-                
-                if "Pole" in tp_a:
-                    pole_g = st.selectbox("Pole Position Oficial:", pilotos, index=index_piloto(g_ex.get('Pole', '')))
-                elif "Corrida Principal" in tp_a:
-                    c1_g, c2_g = st.columns(2)
-                    with c1_g:
-                        p1_g = st.selectbox("1º Colocado:", pilotos, index=index_piloto(g_ex.get('P1', '')))
-                        p2_g = st.selectbox("2º Colocado:", pilotos, index=index_piloto(g_ex.get('P2', '')))
-                        p3_g = st.selectbox("3º Colocado:", pilotos, index=index_piloto(g_ex.get('P3', '')))
-                        p4_g = st.selectbox("4º Colocado:", pilotos, index=index_piloto(g_ex.get('P4', '')))
-                        p5_g = st.selectbox("5º Colocado:", pilotos, index=index_piloto(g_ex.get('P5', '')))
-                    with c2_g:
-                        p6_g = st.selectbox("6º Colocado:", pilotos, index=index_piloto(g_ex.get('P6', '')))
-                        p7_g = st.selectbox("7º Colocado:", pilotos, index=index_piloto(g_ex.get('P7', '')))
-                        p8_g = st.selectbox("8º Colocado:", pilotos, index=index_piloto(g_ex.get('P8', '')))
-                        p9_g = st.selectbox("9º Colocado:", pilotos, index=index_piloto(g_ex.get('P9', '')))
-                        p10_g = st.selectbox("10º Colocado:", pilotos, index=index_piloto(g_ex.get('P10', '')))
-                    c3_g, c4_g, c5_g = st.columns(3)
-                    with c3_g: vr_g = st.selectbox("Melhor Volta:", pilotos, index=index_piloto(g_ex.get('VoltaRapida', '')))
-                    with c4_g: ab_g = st.selectbox("1º Abandono:", pilotos, index=index_piloto(g_ex.get('PrimeiroAbandono', '')))
-                    with c5_g: mu_g = st.selectbox("Mais Ultrapassagens:", pilotos, index=index_piloto(g_ex.get('MaisUltrapassagens', '')))
-                
-                if st.form_submit_button("Salvar / Atualizar Gabarito Oficial 🏆"):
-                    dados_g = {
-                        "GP": gp_a, "Tipo": tp_a, "Pole": pole_g,
-                        "P1": p1_g, "P2": p2_g, "P3": p3_g, "P4": p4_g, "P5": p5_g,
-                        "P6": p6_g, "P7": p7_g, "P8": p8_g, "P9": p9_g, "P10": p10_g,
-                        "VoltaRapida": vr_g, "PrimeiroAbandono": ab_g, "MaisUltrapassagens": mu_g
-                    }
-                    if guardar_dados(dados_g, ARQUIVO_GABARITOS):
-                        st.success("Gabarito Oficial Homologado!")
-                        time.sleep(1)
-                        st.rerun()
+def seletor_etapa(prefixo, gps):
+    c1,c2 = st.columns(2)
+    with c1:
+        gp = st.selectbox('Grande Prêmio', gps, key=f'{prefixo}_gp')
+    with c2:
+        tipo = st.selectbox('Sessão', sessoes_disponiveis(gp), key=f'{prefixo}_tipo')
+    return gp,tipo
 
-        # TAB 4: CONSULTAR GABARITOS
-        with tab4:
-            st.subheader("📋 Gabaritos Homologados")
-            df_g_cons, _ = ler_dados(ARQUIVO_GABARITOS)
-            if not df_g_cons.empty:
-                st.dataframe(df_g_cons.dropna(how='all', axis=1), use_container_width=True)
-            else:
-                st.info("Nenhum gabarito cadastrado.")
 
-        # TAB 5: LIMPEZA DE DADOS
-        with tab5:
-            st.header("🗑️ Exclusão Pontual de Registros")
-            df_limp, _ = ler_dados(ARQUIVO_DADOS)
-            if not df_limp.empty:
-                c_del_gp, c_del_ses = st.columns(2)
-                with c_del_gp: gp_d = st.selectbox("GP:", lista_gps, key="gp_d")
-                with c_del_ses: ses_d = st.selectbox("Sessão:", ["Classificação Principal (Pole)", "Corrida Principal", "Qualy Sprint (Pole)", "Corrida Sprint"], key="ses_d")
-                
-                m_limp = df_limp[(df_limp['GP'] == gp_d) & (df_limp['Tipo'] == ses_d)]
-                if not m_limp.empty:
-                    u_del = st.selectbox("Participante para Deletar:", [""] + sorted(m_limp['Usuario'].tolist()))
-                    if u_del != "" and st.button(f"CONFIRMAR EXCLUSÃO DE {u_del}", type="primary"):
-                        mascara = ~((df_limp['GP'] == gp_d) & (df_limp['Tipo'] == ses_d) & (df_limp['Usuario'] == u_del))
-                        if deletar_registro_github(ARQUIVO_DADOS, mascara):
-                            st.success("Registro removido com sucesso!")
-                            st.rerun()
+def formulario_pilotos(tipo, existente, contexto, fotos=False):
+    valores = dict.fromkeys(CAMPOS_PALPITE,'')
+    campos = campos_sessao(tipo)
+    posicoes = [c for c in campos if c.startswith('P') and c[1:].isdigit()]
+    extras = [c for c in campos if c not in posicoes]
+    if posicoes:
+        colunas = st.columns(2)
+        metade = (len(posicoes)+1)//2
+        for i,campo in enumerate(posicoes):
+            with colunas[i//metade]:
+                valores[campo] = st.selectbox(ROTULOS[campo], pilotos,
+                    index=index_piloto(existente.get(campo,'')), key=f'{contexto}_{campo}')
+                if fotos:
+                    exibir_foto_piloto(valores[campo])
+    if extras:
+        if posicoes:
+            st.markdown('#### Apostas extras')
+        for coluna,campo in zip(st.columns(len(extras)),extras):
+            with coluna:
+                valores[campo] = st.selectbox(ROTULOS[campo], pilotos,
+                    index=index_piloto(existente.get(campo,'')), key=f'{contexto}_{campo}')
+                if fotos:
+                    exibir_foto_piloto(valores[campo])
+    return valores
 
-    elif senha != "":
-        st.error("Senha de administrador incorreta.")
+
+def _email_valido(usuario, informado):
+    esperado = emails_autorizados.get(usuario,'').strip().lower()
+    return bool(esperado) and hmac.compare_digest(informado.strip().lower().encode(), esperado.encode())
+
+
+def _dados_palpite(usuario,gp,tipo,valores,admin=False):
+    return {'Data_Envio':datetime.now(fuso_br).strftime('%d/%m/%Y %H:%M:%S') + (' (Admin)' if admin else ''),
+            'GP':gp,'Tipo':tipo,'Usuario':usuario,'Equipe':EQUIPE_POR_USUARIO.get(usuario,'Sem Equipe'), **valores}
+
+
+def tela_enviar():
+    hero('O próximo pódio começa aqui.', 'Escolha sua etapa, monte o grid e coloque seu conhecimento de Fórmula 1 na disputa.')
+    usuario = st.selectbox('Quem vai acelerar?', ['']+participantes, key='usuario_enviar')
+    if not usuario:
+        st.info('Selecione seu nome para preparar o próximo palpite.')
+        return
+    st.caption(EQUIPE_POR_USUARIO.get(usuario,'Sem Equipe'))
+    gabaritos,_ = ler_dados(ARQUIVO_GABARITOS)
+    realizados = set(gabaritos['GP']) if not gabaritos.empty else set()
+    gps = [gp for gp in lista_gps if gp not in realizados]
+    if not gps:
+        st.info('Todas as etapas já possuem gabarito. Acompanhe a classificação do campeonato.')
+        return
+    secao('01 / ETAPA','Escolha sua disputa')
+    gp,tipo = seletor_etapa('envio',gps)
+    df,_ = ler_dados(ARQUIVO_DADOS)
+    existente = ultimo_registro(df,gp,tipo,usuario)
+    if existente:
+        st.info('Seu palpite atual foi carregado. Ao gravar, suas novas escolhas substituem as anteriores.')
+    secao('02 / GRID',f'GP de {gp} · {tipo}')
+    fotos = st.toggle('Mostrar fotos dos pilotos', value=False)
+    # Contexto inclui participante, GP e sessão: trocar a seleção nunca carrega o grid de outra pessoa.
+    contexto = f'envio_{usuario}_{gp}_{tipo}'
+    with st.container(border=True):
+        valores = formulario_pilotos(tipo,existente,contexto,fotos)
+    preenchidos = sum(bool(valores[c]) for c in campos_sessao(tipo))
+    total = len(campos_sessao(tipo))
+    st.progress(preenchidos/total if total else 0, text=f'{preenchidos} de {total} escolhas preenchidas')
+    secao('03 / CONFIRMAÇÃO','Pronto para entrar na pista?')
+    with st.form(f'confirmar_{contexto}'):
+        email = st.text_input('Confirme seu e-mail cadastrado', type='password')
+        enviar = st.form_submit_button('Gravar meu palpite  →', type='primary', width='stretch')
+    if enviar:
+        if not _email_valido(usuario,email):
+            st.error('E-mail não confere com o cadastrado para este participante.')
+            return
+        dados = _dados_palpite(usuario,gp,tipo,valores)
+        with st.spinner('Registrando seu palpite…'):
+            salvo = guardar_dados(dados,ARQUIVO_DADOS)
+        if salvo:
+            st.success(f'Palpite de {usuario} para o GP de {gp} gravado com sucesso!')
+            st.toast('Você está na disputa!',icon='🏁')
+            if not enviar_recibo_email(dados,email.strip()):
+                st.warning('Seu palpite está salvo. Não foi possível enviar o recibo por e-mail.')
+
+
+def tela_meus_palpites():
+    hero('Seu histórico na pista.', 'Consulte as escolhas que você registrou ao longo do campeonato.', 'ÁREA DO PARTICIPANTE')
+    with st.form('consulta'):
+        usuario = st.selectbox('Participante',['']+participantes)
+        email = st.text_input('E-mail cadastrado',type='password')
+        buscar = st.form_submit_button('Consultar meus palpites',type='primary')
+    if not buscar:
+        return
+    if not _email_valido(usuario,email):
+        st.error('Acesso negado: e-mail incorreto.')
+        return
+    df,_ = ler_dados(ARQUIVO_DADOS)
+    if df.empty:
+        st.info('Banco de dados vazio.')
+        return
+    meus = df.loc[df['Usuario']==usuario].drop_duplicates(['GP','Tipo'],keep='last')
+    if meus.empty:
+        st.info('Você ainda não enviou palpites.')
+        return
+    c1,c2 = st.columns(2)
+    c1.metric('Palpites registrados',len(meus))
+    c2.metric('Etapas disputadas',meus['GP'].nunique())
+    st.dataframe(meus.drop(columns=['Usuario','Equipe']),width='stretch',hide_index=True)
+
+
+def ranking(df,chave):
+    return df.groupby(chave)['Pontos'].sum().reset_index().sort_values('Pontos',ascending=False)
+
+
+def tela_classificacoes():
+    hero('Cada ponto muda o jogo.', 'Acompanhe a disputa entre participantes e equipes, no campeonato ou por Grande Prêmio.', 'CLASSIFICAÇÃO OFICIAL DO BOLÃO')
+    palpites,_ = ler_dados(ARQUIVO_DADOS)
+    gabaritos,_ = ler_dados(ARQUIVO_GABARITOS)
+    df = processar_resultados(palpites,gabaritos)
+    filtro = st.selectbox('Etapa',['Geral (Campeonato Completo)']+lista_gps)
+    if filtro != 'Geral (Campeonato Completo)':
+        df = df.loc[df['GP']==filtro]
+    if df.empty:
+        st.info('Ainda não há pontuação apurada para esta seleção.')
+        return
+    individual = ranking(df,'Usuario')
+    por_equipe = ranking(df,'Equipe')
+    c1,c2,c3 = st.columns(3)
+    c1.metric('Participantes pontuados',df['Usuario'].nunique())
+    c2.metric('Etapas apuradas',df['GP'].nunique())
+    c3.metric('Pontos do líder',int(individual.iloc[0]['Pontos']))
+    secao('NA FRENTE','A disputa pelo topo')
+    for coluna,(pos,registro) in zip(st.columns(3),enumerate(individual.head(3).to_dict('records'),1)):
+        with coluna:
+            st.markdown(f'<div class="podium"><div class="rank">{pos:02d} / CLASSIFICAÇÃO</div><h3>{escape(registro["Usuario"])}</h3><div class="score">{int(registro["Pontos"]):,} <small>pontos</small></div></div>',unsafe_allow_html=True)
+    tab1,tab2 = st.tabs(['Participantes','Equipes'])
+    for tab,tabela in ((tab1,individual),(tab2,por_equipe)):
+        with tab:
+            tabela = tabela.copy()
+            tabela.index = range(1,len(tabela)+1)
+            tabela.index.name = 'Posição'
+            st.dataframe(tabela,width='stretch')
+            st.bar_chart(tabela.set_index(tabela.columns[0])['Pontos'],color='#ff463e',horizontal=True)
+
+
+def admin_auditoria():
+    st.subheader('Palpites dos participantes')
+    df,_ = ler_dados(ARQUIVO_DADOS)
+    if df.empty:
+        st.info('Nenhum palpite cadastrado.')
+        return
+    df = df.drop_duplicates(['Usuario','GP','Tipo'],keep='last')
+    gp_filtro = st.selectbox('Filtrar auditoria por GP',['Todos os GPs']+lista_gps)
+    st.dataframe(df if gp_filtro=='Todos os GPs' else df.loc[df['GP']==gp_filtro],width='stretch',hide_index=True)
+    secao('EDIÇÃO','Ajustar palpite de participante')
+    usuario = st.selectbox('Participante',['']+participantes,key='adm_usuario')
+    gp,tipo = seletor_etapa('adm',lista_gps)
+    if not usuario:
+        return
+    contexto = f'admin_{usuario}_{gp}_{tipo}'
+    with st.form(contexto):
+        valores = formulario_pilotos(tipo,ultimo_registro(df,gp,tipo,usuario),contexto)
+        salvar = st.form_submit_button('Salvar alteração do administrador',type='primary')
+    if salvar and guardar_dados(_dados_palpite(usuario,gp,tipo,valores,admin=True),ARQUIVO_DADOS,eh_edicao_admin=True):
+        st.session_state['mensagem_sucesso'] = f'Palpite de {usuario} atualizado.'
+        st.rerun()
+
+
+def admin_historico():
+    st.subheader('Histórico de alterações')
+    df,_ = ler_dados(ARQUIVO_HISTORICO)
+    if df.empty:
+        st.info('Histórico de alterações vazio.')
+        return
+    c1,c2 = st.columns(2)
+    with c1:
+        usuario = st.selectbox('Participante',['Todos']+participantes,key='log_usuario')
+    with c2:
+        gp = st.selectbox('Grande Prêmio',['Todos']+lista_gps,key='log_gp')
+    if usuario != 'Todos':
+        df = df.loc[df['Usuario']==usuario]
+    if gp != 'Todos':
+        df = df.loc[df['GP']==gp]
+    if df.empty:
+        st.info('Nenhum evento com esses filtros.')
+    else:
+        st.dataframe(df.iloc[::-1],width='stretch',hide_index=True)
+
+
+def admin_gabarito():
+    st.subheader('Homologar resultado oficial')
+    gp,tipo = seletor_etapa('gabarito',lista_gps)
+    df,_ = ler_dados(ARQUIVO_GABARITOS)
+    contexto = f'gabarito_{gp}_{tipo}'
+    with st.form(contexto):
+        valores = formulario_pilotos(tipo,ultimo_registro(df,gp,tipo),contexto)
+        salvar = st.form_submit_button('Salvar / atualizar gabarito oficial',type='primary')
+    if salvar and guardar_dados({'GP':gp,'Tipo':tipo,**valores},ARQUIVO_GABARITOS):
+        st.session_state['mensagem_sucesso'] = 'Gabarito oficial homologado!'
+        st.rerun()
+
+
+def admin_gabaritos_salvos():
+    st.subheader('Gabaritos homologados')
+    df,_ = ler_dados(ARQUIVO_GABARITOS)
+    if df.empty:
+        st.info('Nenhum gabarito cadastrado.')
+    else:
+        st.dataframe(df.dropna(how='all',axis=1),width='stretch',hide_index=True)
+
+
+def admin_excluir():
+    st.subheader('Exclusão de registros')
+    df,_ = ler_dados(ARQUIVO_DADOS)
+    if df.empty:
+        st.info('Nenhum palpite cadastrado.')
+        return
+    gp,tipo = seletor_etapa('excluir',lista_gps)
+    filtrado = df.loc[(df['GP']==gp)&(df['Tipo']==tipo)]
+    if filtrado.empty:
+        st.info('Nenhum registro nesta sessão.')
+        return
+    usuario = st.selectbox('Participante para excluir',['']+sorted(filtrado['Usuario'].unique()))
+    if usuario:
+        st.warning(f'A exclusão removerá o palpite de {usuario} desta sessão.')
+        if st.button('Confirmar exclusão',type='primary'):
+            mascara = ~((df['GP']==gp)&(df['Tipo']==tipo)&(df['Usuario']==usuario))
+            if deletar_registro_github(ARQUIVO_DADOS,mascara):
+                st.session_state['mensagem_sucesso'] = 'Registro removido com sucesso.'
+                st.rerun()
+
+
+def tela_admin():
+    hero('Direção de prova.', 'Gerencie os palpites, homologue os resultados e acompanhe os registros do campeonato.', 'ÁREA ADMINISTRATIVA')
+    senha = st.text_input('Senha do diretor de prova',type='password')
+    esperada = configuracao('SENHA_ADMIN',SENHA_ADMIN_LEGADA)
+    if not senha:
+        return
+    if not hmac.compare_digest(senha.encode(),esperada.encode()):
+        st.error('Senha de administrador incorreta.')
+        return
+    st.caption('Painel administrativo · acesso autorizado')
+    # Radio executa apenas a seção ativa, ao contrário de cinco abas executadas a cada interação.
+    painel = st.radio('Painel',['Auditoria e edição','Histórico','Homologar resultado','Gabaritos salvos','Excluir registro'],horizontal=True)
+    {'Auditoria e edição':admin_auditoria,'Histórico':admin_historico,
+     'Homologar resultado':admin_gabarito,'Gabaritos salvos':admin_gabaritos_salvos,
+     'Excluir registro':admin_excluir}[painel]()
+
+
+def main():
+    st.set_page_config(page_title='Bolão F1 2026 · Na disputa',page_icon='🏁',layout='wide',initial_sidebar_state='collapsed')
+    menu = cabecalho()
+    if not GITHUB_TOKEN:
+        st.error('A variável GITHUB_TOKEN não foi encontrada nas configurações de ambiente.')
+        return
+    if st.session_state.get('mensagem_sucesso'):
+        st.success(st.session_state.pop('mensagem_sucesso'))
+    with st.sidebar:
+        st.markdown('### Central do campeonato')
+        st.caption('O cache de leitura expira após 20 segundos; os dados são renovados na próxima interação.')
+        if st.button('Atualizar dados agora',width='stretch'):
+            _ler_dados_cache.clear()
+            st.rerun()
+        with st.expander('Como funciona a pontuação'):
+            st.write('Pole: 100 pontos. Principal: pontos por posição e apostas extras; bônus exclusivo de 300, 450 ou 600 pontos por top 3, top 5 ou top 10 na ordem. Sprint: pontuação do 1º ao 8º colocado.')
+    try:
+        {'Enviar Palpite':tela_enviar,'Meus Palpites':tela_meus_palpites,
+         'Classificações':tela_classificacoes,'Administrador':tela_admin}[menu]()
+    except (urllib.error.URLError, OSError, ValueError, KeyError):
+        logger.exception('Falha ao carregar tela')
+        st.error('Não foi possível carregar os dados. Verifique a conexão, a configuração de acesso e as colunas dos CSVs e tente atualizar.')
+    st.markdown('<div class="footer">BOLÃO F1 2026 · A EMOÇÃO DA CORRIDA CONTINUA NO SEU PALPITE.</div>',unsafe_allow_html=True)
+
+
+if __name__ == '__main__':
+    main()
