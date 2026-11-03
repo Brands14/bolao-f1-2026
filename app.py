@@ -580,6 +580,109 @@ def situacao_titulo(pontos,pontos_lider,restantes):
     return 'Pode alcançar a liderança'
 
 
+# Os pesos e bônus atuais geram pontuações em múltiplos de cinco.
+PASSO_PONTOS = 5
+
+
+def gp_sugerido_mapa(analise):
+    calendario = analise['calendario']
+    pendentes = calendario.loc[calendario['Pontos disponíveis']>0,'GP'].tolist()
+    if not pendentes:
+        return None
+    ordem = calendario['GP'].tolist()
+    apurados = [ordem.index(gp) for gp in analise['matriz'].index if gp in ordem]
+    ultimo = max(apurados,default=-1)
+    return next((gp for gp in pendentes if ordem.index(gp)>=ultimo),pendentes[0])
+
+
+def referencia_pontos_mapa(analise,gp,recente=True):
+    """Média das sessões ainda pendentes; ausência entra como zero, sem somar o que já foi apurado."""
+    nomes = analise['tabela']['Usuario'].tolist()
+    pontos = pd.Series(0.0,index=nomes)
+    etapa = analise['calendario'].set_index('GP').loc[gp]
+    sem_historico = []
+    gabaritos = analise['gabaritos']
+    sessoes = analise['sessoes']
+    for tipo in etapa['Pendentes']:
+        realizados = set(gabaritos.loc[gabaritos['Tipo']==tipo,'GP']) if not gabaritos.empty else set()
+        ordem = [g for g in lista_gps if g in realizados]+sorted(realizados-set(lista_gps))
+        if recente:
+            ordem = ordem[-3:]
+        dados = sessoes.loc[sessoes['Tipo']==tipo] if not sessoes.empty else sessoes
+        if not ordem or dados.empty:
+            sem_historico.append(tipo)
+            continue
+        matriz = dados.pivot_table(index='GP',columns='Usuario',values='Pontos',aggfunc='sum',fill_value=0)
+        media = matriz.reindex(index=ordem,columns=nomes,fill_value=0).fillna(0).mean()
+        pontos += media.clip(0,MAX_PONTOS_SESSAO[tipo])
+    teto = int(etapa['Pontos disponíveis'])
+    return pontos.clip(0,teto), tuple(sem_historico)
+
+
+def _limiar_pontos(total_rival,pontos_atuais,estrito=False):
+    from math import ceil,floor
+    distancia = float(total_rival)-float(pontos_atuais)
+    passos = floor(distancia/PASSO_PONTOS)+1 if estrito else ceil(distancia/PASSO_PONTOS)
+    return max(0,int(passos*PASSO_PONTOS))
+
+
+def _situacao_duelo(diferenca_atual,diferenca_final):
+    if diferenca_final==0:
+        return 'Empata'
+    if diferenca_final>0:
+        return 'Ultrapassa' if diferenca_atual<0 else 'Desempata a seu favor' if diferenca_atual==0 else 'Continua à frente'
+    return 'É ultrapassado' if diferenca_atual>0 else 'Desempata contra você' if diferenca_atual==0 else 'Continua atrás'
+
+
+def calcular_mapa_ultrapassagens(tabela,usuario,pontos_gp,teto_gp):
+    """Classificação hipotética sem modificar a tabela ou persistir qualquer pontuação."""
+    from math import isfinite
+    if tabela['Usuario'].duplicated().any() or usuario not in tabela['Usuario'].values:
+        raise ValueError('Participante inválido ou duplicado no cenário.')
+    if not isfinite(float(teto_gp)) or teto_gp<0:
+        raise ValueError('Teto inválido para o GP.')
+    mapa = tabela[['Usuario','Pontos']].copy()
+    adicoes = [float(pontos_gp.get(nome,0)) for nome in mapa['Usuario']]
+    if any(not isfinite(v) or v<0 or v>teto_gp for v in adicoes):
+        raise ValueError('A pontuação deve ficar entre zero e o teto das sessões pendentes.')
+    if not mapa['Pontos'].map(lambda v:isfinite(float(v))).all():
+        raise ValueError('Os pontos atuais precisam ser válidos.')
+    mapa['Pontos no GP'] = adicoes
+    mapa['Total no cenário'] = mapa['Pontos']+mapa['Pontos no GP']
+    mapa['Posição atual'] = mapa['Pontos'].rank(method='min',ascending=False).astype(int)
+    mapa['Posição no cenário'] = mapa['Total no cenário'].rank(method='min',ascending=False).astype(int)
+    mapa['Variação'] = mapa['Posição atual']-mapa['Posição no cenário']
+    voce = mapa.loc[mapa['Usuario']==usuario].iloc[0]
+    mapa['Diferença para você'] = mapa['Total no cenário']-voce['Total no cenário']
+    mapa['Duelo'] = [_situacao_duelo(voce['Pontos']-r['Pontos'],voce['Total no cenário']-r['Total no cenário'])
+                      if r['Usuario']!=usuario else 'Você' for r in mapa.to_dict('records')]
+    mapa['Para alcançar (pts no GP)'] = mapa['Total no cenário'].map(lambda total:_limiar_pontos(total,voce['Pontos']))
+    mapa['Para passar (pts no GP)'] = mapa['Total no cenário'].map(lambda total:_limiar_pontos(total,voce['Pontos'],estrito=True))
+    mapa.loc[mapa['Usuario']==usuario,['Para alcançar (pts no GP)','Para passar (pts no GP)']] = float('nan')
+    mapa['Ultrapassagem ao alcance'] = mapa['Para passar (pts no GP)']<=teto_gp
+    return mapa.sort_values(['Total no cenário','Usuario'],ascending=[False,True],kind='stable').reset_index(drop=True)
+
+
+def metas_mapa_ultrapassagens(mapa,usuario,teto):
+    voce = mapa.loc[mapa['Usuario']==usuario].iloc[0]
+    rivais = mapa.loc[mapa['Usuario']!=usuario]
+    if rivais.empty:
+        return []
+    alvos = rivais.loc[rivais['Total no cenário']>=voce['Total no cenário']].sort_values(['Total no cenário','Usuario'])
+    proximo = alvos.iloc[0] if not alvos.empty else rivais.sort_values('Total no cenário',ascending=False).iloc[0]
+    ordenados = rivais.sort_values(['Total no cenário','Usuario'],ascending=[False,True])
+    podio = ordenados.iloc[2] if len(ordenados)>=3 else None
+    lider = ordenados.iloc[0]
+    missoes = []
+    for titulo,alvo in [('Próximo rival' if not alvos.empty else 'Defender a ponta',proximo),
+                        ('Missão pódio',podio),('Missão liderança',lider)]:
+        alcance = _limiar_pontos(alvo['Total no cenário'],voce['Pontos']) if alvo is not None else 0
+        passar = _limiar_pontos(alvo['Total no cenário'],voce['Pontos'],True) if alvo is not None else 0
+        missoes.append({'Título':titulo,'Rival':alvo['Usuario'] if alvo is not None else '',
+                        'Para alcançar':alcance,'Para passar':passar,'Ao alcance':passar<=teto})
+    return missoes
+
+
 def manual_pontuacao():
     st.markdown('### 🏁 Manual do palpiteiro')
     st.caption('Pontos por acerto exato · mesmas regras do seu bolão')
@@ -654,6 +757,50 @@ button[kind="primary"], button[data-testid="stBaseButton-primaryFormSubmit"] {ba
 def estilo_paddock():
     bandeira,carro,trofeu = arte_f1('bandeira'),arte_f1('carro'),arte_f1('trofeu')
     return '''<style>
+/* Laboratório de ultrapassagens */
+.editorial-favorito {border-top:3px solid #e9b665; background:linear-gradient(135deg,#3b2d22,#121b2c);}
+.editorial-gasolina {border-top:3px solid #59d6bc; background:linear-gradient(135deg,#163735,#111d2d);}
+.editorial-azarao {border-top:3px solid #ae92ff; background:linear-gradient(135deg,#302545,#141c2c);}
+.editorial-ritmo {border-top:3px solid #ff6b61;}
+.editorial-pole {border-top:3px solid #7fb4ff;}
+.editorial-especiais {border-top:3px solid #f7a963;}
+.mapa-summary {display:flex; align-items:center; gap:14px; border:1px solid #3c6e6b; background:linear-gradient(100deg,#153333,#172438); border-radius:16px; padding:18px 22px; margin:20px 0;}
+.mapa-summary.perde {border-color:#bd7576; background:linear-gradient(100deg,#3e2430,#172438);}
+.mapa-summary.perde>b {color:#ff9b98;} .mapa-summary.neutro {border-color:#4b6080; background:linear-gradient(100deg,#1c2c43,#172438);}
+.mapa-summary.neutro>b {color:#c4d9f4;}
+.mapa-summary>div {flex:1;} .mapa-summary strong {display:block; font-size:17px;} .mapa-summary span {display:block; margin-top:5px; color:#b8d0d5; font-size:12px;}
+.mapa-summary>b {font-size:26px; color:#78e4c5; white-space:nowrap;}
+.mapa-grid {border:1px solid #35455d; background:#101a2a; border-radius:16px; overflow:hidden; margin:12px 0;}
+.mapa-lane {display:flex; align-items:center; gap:12px; min-height:86px; padding:13px 18px; border-bottom:1px solid #2a374b; border-left:4px solid transparent;}
+.mapa-lane:last-child {border-bottom:0;} .mapa-lane.voce {background:#123137; border-left-color:#69dfc0;}
+.mapa-lane.ganha {background:#102b282e; border-left-color:#5ed3ab;}
+.mapa-lane.perde {background:#45242d40; border-left-color:#ff807f;}
+.mapa-lane.empata {background:#4d3b2140; border-left-color:#edbd70;}
+.lane-pos {font-size:19px; font-weight:850; color:#c5d3e8; width:30px; flex-shrink:0;}
+.lane-name {flex:1; min-width:140px;} .lane-name strong {display:block; font-size:13px;} .lane-name small {display:block; font-size:10px; color:#9fb3d0; margin-top:5px;}
+.lane-track {position:relative; width:27%; height:33px; background:repeating-linear-gradient(90deg,#354154 0 15px,transparent 15px 22px) center/100% 1px no-repeat; border-top:1px solid #25344a; border-bottom:1px solid #25344a;}
+.lane-track>span {position:absolute; left:0; top:12px; height:8px; background:#487097; opacity:.5; border-radius:9px;}
+.lane-track>img {position:absolute; width:30px; height:33px; top:0; transform:rotate(90deg); object-fit:contain; opacity:.6;}
+.voce .lane-track>span {background:#64e9c2; opacity:.85;} .voce .lane-track>img {opacity:1;}
+.lane-total {width:80px; text-align:right; font-size:20px; font-weight:800; font-variant-numeric:tabular-nums;}
+.lane-total small {display:block; font-size:10px; color:#adc0d8; font-weight:400; margin-top:4px;}
+.mapa-mission {padding:22px; border:1px solid #3b526b; border-radius:16px; background:linear-gradient(135deg,#1c3043,#121d2d); min-height:290px; margin:12px 0;}
+.mapa-mission.ganha {border-top:3px solid #65d9b5;} .mapa-mission.perde {border-top:3px solid #f18f89;}
+.mapa-mission .tag {font-size:10px; letter-spacing:.12em; color:#95cbd9; text-transform:uppercase; font-weight:800;}
+.mapa-mission h3 {font-size:16px; margin:0; padding:0;}
+.mission-number {font-size:31px; font-weight:850; color:#8de6c6; margin:12px 0;}
+.mapa-mission.perde .mission-number {color:#ffa29b;} .mission-number small {font-size:10px; font-weight:400; color:#afc3de;}
+.mapa-mission p {font-size:12px; line-height:1.7; color:#afc2dc; margin:9px 0;}
+.mission-progress {height:5px; background:#2a3c52; border-radius:6px; margin:14px 0 5px; overflow:hidden;}
+.mission-progress>span {display:block; height:100%; border-radius:6px; background:#68ddba;}
+.mapa-mission.perde .mission-progress>span {background:#eb9692;}
+.mission-badge {display:inline-block; border-radius:6px; background:#243b4a; padding:5px 8px; color:#c7dded; font-size:10px; margin-top:6px;}
+.mapa-duelo {display:flex; align-items:center; justify-content:space-between; gap:16px; padding:23px; border-radius:16px; border:1px solid #475a73; background:#18273a; margin:15px 0;}
+.mapa-duelo>div {flex:1; text-align:center;} .mapa-duelo strong {display:block; font-size:17px;} .mapa-duelo span {display:block; margin-top:10px; color:#c0cee1; font-size:13px;}
+.mapa-duelo.ganha {border-color:#55b398; background:linear-gradient(120deg,#17382f,#19283a);}
+.mapa-duelo.perde {border-color:#c77b78; background:linear-gradient(120deg,#3a242d,#19283a);}
+.mapa-duelo.empata {border-color:#d3ac6d;}
+@media(max-width:640px) {.mapa-lane {gap:8px; padding:12px 8px; border-left-width:3px;} .lane-pos {width:23px; font-size:16px;} .lane-name {min-width:0;} .lane-name strong {font-size:11px;} .lane-track {display:none;} .lane-total {font-size:16px; width:62px;} .mapa-lane .avatar {width:32px; height:32px;} .mapa-summary {padding:15px; flex-wrap:wrap;} .mapa-summary>b {font-size:22px;} .mapa-summary span {font-size:11px;} .mapa-duelo {gap:9px; padding:16px 12px;} .mapa-duelo strong {font-size:12px;} .mapa-duelo span {font-size:11px;} .mapa-mission {min-height:250px;} }
 .hero {border-color:#354461; box-shadow:0 18px 45px #0002;}
 .hero-body {padding-right:28%;}
 .hero-art {position:absolute; width:250px; right:20px; top:10px; height:92%; object-fit:contain; opacity:.8; transform:rotate(18deg); pointer-events:none;}
@@ -885,7 +1032,8 @@ def ranking(df,chave):
 
 def cartao_editorial(titulo,nome,descricao,tipo='capacete'):
     foto = avatar_html(nome,'mini') if nome else ''
-    st.markdown(f'<div class="editorial"><img class="editorial-art" src="{arte_f1(tipo)}" alt=""/><div class="tag">{escape(titulo)}</div><div class="editorial-person">{foto}<h3>{escape(nome or "Aguardando resultados")}</h3></div><p>{escape(descricao)}</p></div>',unsafe_allow_html=True)
+    classe = {'Favorito da simulação':'favorito','Referência a ser batida':'favorito','Cabeça de gasolina':'gasolina','Azarão na pista':'azarao','Pé embaixo':'ritmo','Mestre da pole':'pole','Faro para os especiais':'especiais'}.get(titulo,'padrao')
+    st.markdown(f'<div class="editorial editorial-{classe}"><img class="editorial-art" src="{arte_f1(tipo)}" alt=""/><div class="tag">{escape(titulo)}</div><div class="editorial-person">{foto}<h3>{escape(nome or "Aguardando resultados")}</h3></div><p>{escape(descricao)}</p></div>',unsafe_allow_html=True)
 
 
 def quadro_destaques(analise,chances):
@@ -1084,6 +1232,139 @@ def visao_titulo(analise,chances):
     st.caption('Percentuais geram valores médios, que podem não corresponder a uma combinação exata de acertos. Este simulador não altera palpites, gabaritos ou pontos reais.')
 
 
+def _valor_slider_mapa(valor,teto):
+    return max(0,min(int(teto),int(round(float(valor)/PASSO_PONTOS)*PASSO_PONTOS)))
+
+
+def _classe_duelo(status):
+    if status in ('Ultrapassa','Desempata a seu favor'):
+        return 'ganha'
+    if status in ('É ultrapassado','Desempata contra você'):
+        return 'perde'
+    return 'empata' if status=='Empata' else 'neutro'
+
+
+def renderizar_pista_mapa(mapa,usuario,mostrar_todos=False):
+    indice = int(mapa.index[mapa['Usuario']==usuario][0])
+    visiveis = mapa if mostrar_todos else mapa.iloc[max(0,indice-3):min(len(mapa),indice+4)]
+    maior = max(1,mapa['Total no cenário'].max())
+    linhas = []
+    for r in visiveis.to_dict('records'):
+        classe = 'voce' if r['Usuario']==usuario else _classe_duelo(r['Duelo'])
+        percentual = max(0,min(100,100*r['Total no cenário']/maior))
+        seta = f'↑ {r["Variação"]}' if r['Variação']>0 else f'↓ {abs(r["Variação"])}' if r['Variação']<0 else '—'
+        linhas.append(f'<div class="mapa-lane {classe}"><span class="lane-pos">{r["Posição no cenário"]:02d}</span>{avatar_html(r["Usuario"],"mini")}<div class="lane-name"><strong>{escape(r["Usuario"])}</strong><small>{escape(r["Duelo"])} · {seta}</small></div><div class="lane-track"><span style="width:{percentual:.2f}%"></span><img src="{arte_f1("carro")}" style="left:clamp(0px,calc({percentual:.2f}% - 15px),calc(100% - 30px))" alt=""/></div><div class="lane-total">{numero_br(r["Total no cenário"])}<small>+{numero_br(r["Pontos no GP"])} no GP</small></div></div>')
+    st.markdown('<div class="mapa-grid">'+''.join(linhas)+'</div>',unsafe_allow_html=True)
+
+
+def restaurar_mapa_ultrapassagens():
+    # O callback roda antes de recriar os widgets, sem exigir um rerun extra.
+    for chave in list(st.session_state):
+        if chave.startswith(('mapa_voce_','mapa_rival_','mapa_igual_','mapa_editar_')):
+            del st.session_state[chave]
+
+
+def visao_mapa_ultrapassagens(analise):
+    secao('ESTRATÉGIA / LABORATÓRIO DO PRÓXIMO GP','Mapa de ultrapassagens')
+    st.caption('Arraste sua pontuação e descubra quem fica para trás. A pista representa pontos acumulados neste cenário, não uma previsão da corrida de F1.')
+    calendario = analise['calendario']
+    pendentes = calendario.loc[calendario['Pontos disponíveis']>0]
+    if pendentes.empty:
+        st.info('Todas as sessões estão homologadas. Não há GP pendente para simular.')
+        return
+    tabela = analise['tabela']
+    nomes = tabela['Usuario'].tolist()
+    sugerido = st.session_state.get('usuario_enviar') or st.session_state.get('raiox_usuario')
+    if sugerido not in nomes:
+        sugerido = nomes[min(1,len(nomes)-1)]
+    c1,c2 = st.columns(2)
+    with c1:
+        usuario = st.selectbox('Seu lugar no grid',nomes,index=nomes.index(sugerido),key='mapa_usuario')
+    with c2:
+        gps = pendentes['GP'].tolist()
+        gp = st.selectbox('GP do cenário',gps,index=gps.index(gp_sugerido_mapa(analise)),key='mapa_gp')
+    etapa = pendentes.set_index('GP').loc[gp]
+    teto = int(etapa['Pontos disponíveis'])
+    st.markdown(f'<div class="season-strip"><span>🏎️ GP de {escape(gp)}</span><span>⚡ Até {numero_br(teto)} pontos por pessoa</span><span>⏱️ {int(etapa["Sessões pendentes"])} sessões ainda sem gabarito</span></div>',unsafe_allow_html=True)
+    st.caption('O que já foi homologado permanece no total atual. Aqui você distribui somente os pontos das sessões pendentes: '+' · '.join(etapa['Pendentes'])+'.')
+    modo = st.radio('Ritmo inicial dos adversários',['Ritmo recente','Média da temporada','Pontuação igual'],horizontal=True,key='mapa_base')
+    st.button('↺ Restaurar o ritmo de referência',key='mapa_restaurar',on_click=restaurar_mapa_ultrapassagens)
+    base,faltantes = referencia_pontos_mapa(analise,gp,recente=modo=='Ritmo recente')
+    if modo=='Pontuação igual':
+        comum = st.slider('Pontuação inicial de cada adversário',0,teto,value=_valor_slider_mapa(base.mean(),teto),step=PASSO_PONTOS,key=f'mapa_igual_{gp}')
+        base = pd.Series(float(comum),index=nomes)
+    else:
+        st.caption('Referência: média das três últimas apurações de cada tipo de sessão pendente.' if modo=='Ritmo recente' else 'Referência: média de todas as apurações de cada tipo de sessão pendente.')
+        st.caption('Ausências contam como zero. Valores são arredondados para múltiplos de cinco e limitados ao teto do GP.')
+        if faltantes:
+            st.info('Sem histórico para '+', '.join(faltantes)+': a referência dessas sessões começa em zero. Você pode ajustar os rivais abaixo.')
+    contexto = f'{usuario}_{gp}_{modo}'
+    seus_pontos = st.slider('Seus pontos nas sessões pendentes',0,teto,value=_valor_slider_mapa(base[usuario],teto),step=PASSO_PONTOS,key=f'mapa_voce_{contexto}')
+    pontuacoes = {nome:_valor_slider_mapa(base[nome],teto) for nome in nomes}
+    with st.expander('🎛️ Ajustar individualmente os pontos dos rivais'):
+        st.caption('Os valores são somados ao total atual de cada rival apenas nesta simulação.')
+        personalizar = st.checkbox('Ativar ajustes individuais',value=False,key=f'mapa_editar_{contexto}')
+        if personalizar:
+            st.caption('Com os ajustes individuais ativados, estes valores prevalecem sobre o ritmo inicial.')
+            colunas = st.columns(2)
+            for i,nome in enumerate(n for n in nomes if n!=usuario):
+                with colunas[i%2]:
+                    pontuacoes[nome] = st.number_input(nome,min_value=0,max_value=teto,value=pontuacoes[nome],step=PASSO_PONTOS,key=f'mapa_rival_{contexto}_{nome}')
+    pontuacoes[usuario] = seus_pontos
+    mapa = calcular_mapa_ultrapassagens(tabela,usuario,pontuacoes,teto)
+    voce = mapa.loc[mapa['Usuario']==usuario].iloc[0]
+    passou = mapa.loc[mapa['Duelo']=='Ultrapassa','Usuario'].tolist()
+    perdeu = mapa.loc[mapa['Duelo']=='É ultrapassado','Usuario'].tolist()
+    empatou = mapa.loc[mapa['Duelo']=='Empata','Usuario'].tolist()
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric('Sua posição atual',f'{int(voce["Posição atual"])}º')
+    c2.metric('Posição neste cenário',f'{int(voce["Posição no cenário"])}º')
+    c3.metric('Saldo de posições',f'{int(voce["Variação"]):+d}')
+    c4.metric('Rivais ultrapassados',len(passou))
+    frase = f'{numero_br(voce["Pontos"])} atuais + {numero_br(seus_pontos)} no GP = {numero_br(voce["Total no cenário"])} pontos.'
+    classe_saldo = 'ganha' if voce['Variação']>0 else 'perde' if voce['Variação']<0 else 'neutro'
+    st.markdown(f'<div class="mapa-summary {classe_saldo}">{avatar_html(usuario,"mini")}<div><strong>{escape(usuario)}</strong><span>{escape(frase)}</span></div><b>{int(voce["Posição atual"])}º → {int(voce["Posição no cenário"])}º</b></div>',unsafe_allow_html=True)
+    st.caption('Verde: você passa ou desempata a seu favor. Vermelho: o rival passa ou desempata contra você. Dourado: empate. As colocações empatadas são compartilhadas, sem desempate adicional.')
+    todos = st.checkbox('Mostrar todo o grid na pista',value=False,key='mapa_grid_completo')
+    renderizar_pista_mapa(mapa,usuario,todos)
+    st.caption('O saldo de posições considera o grid inteiro. O número de ultrapassagens conta apenas rivais que estavam estritamente à sua frente; desempates têm identificação própria.')
+    if passou:
+        st.success('Você ultrapassa: '+', '.join(passou)+'.')
+    if perdeu:
+        st.warning('Você é ultrapassado por: '+', '.join(perdeu)+'.')
+    if empatou:
+        st.info('Termina empatado com: '+', '.join(empatou)+'.')
+    st.markdown('### Suas missões para este GP')
+    missoes = metas_mapa_ultrapassagens(mapa,usuario,teto)
+    for coluna,missao in zip(st.columns(3),missoes):
+        with coluna:
+            classe = 'ganha' if missao['Ao alcance'] else 'perde'
+            rival = missao['Rival']
+            foto = avatar_html(rival,'mini') if rival else ''
+            texto = f'{numero_br(missao["Para alcançar"])} pts para alcançar a linha de corte; {numero_br(missao["Para passar"])} pts para ficar acima dela.'
+            if missao['Para passar']==0:
+                texto = 'Você já alcança esta meta com zero ponto adicional, considerando os pontos definidos para os rivais.'
+            cumprida = seus_pontos >= missao['Para passar']
+            alcance = '✓ Meta atingida neste cenário' if cumprida else f'Faltam {numero_br(missao["Para passar"]-seus_pontos)} pts no seu slider' if missao['Ao alcance'] else 'Exige mais que o teto deste GP'
+            progresso = min(100,100*seus_pontos/max(1,missao['Para passar'])) if missao['Para passar'] else 100
+            st.markdown(f'<div class="mapa-mission {classe}"><div class="tag">{escape(missao["Título"])}</div><div class="editorial-person">{foto}<h3>{escape(rival or "Pódio já alcançado")}</h3></div><div class="mission-number">{numero_br(missao["Para passar"])} <small>pontos no GP</small></div><p>{escape(texto)}</p><div class="mission-progress"><span style="width:{progresso:.1f}%"></span></div><span class="mission-badge">{escape(alcance)}</span></div>',unsafe_allow_html=True)
+    st.caption('As metas são os seus pontos totais nas sessões pendentes, não pontos extras além do slider. Elas consideram os rivais definidos acima. O próximo rival é o mais próximo ainda à sua frente (ou empatado) neste cenário. A linha de corte do pódio é o terceiro maior total entre os adversários; a da liderança, o maior. Igualar a linha compartilha a colocação; passar fica acima, sem empate nessa linha.')
+    rivais = mapa.loc[mapa['Usuario']!=usuario]
+    if not rivais.empty:
+        st.markdown('### Duelo direto da rodada')
+        adversario = st.selectbox('Escolha seu adversário',rivais['Usuario'].tolist(),key='mapa_duelo')
+        r = rivais.loc[rivais['Usuario']==adversario].iloc[0]
+        diferenca = voce['Total no cenário']-r['Total no cenário']
+        sinal = 'à frente' if diferenca>0 else 'atrás' if diferenca<0 else 'empatado'
+        st.markdown(f'<div class="mapa-duelo {_classe_duelo(r["Duelo"])}">{avatar_html(usuario,"mini")}<div><strong>{escape(usuario)} × {escape(adversario)}</strong><span>{numero_br(abs(diferenca))} pontos · {sinal} neste cenário</span></div>{avatar_html(adversario,"mini")}</div>',unsafe_allow_html=True)
+    with st.expander('Ver todos os pontos e alvos em tabela'):
+        st.dataframe(mapa,use_container_width=True,hide_index=True)
+    with st.expander('Como interpretar este mapa'):
+        st.write('Este é um cenário determinístico: adiciona somente os pontos que você definiu para as sessões sem gabarito do GP selecionado. Você pode escolher também pendências antigas. Não lê palpites ainda não apurados nem prevê resultados reais.')
+        st.write('Múltiplos de cinco seguem os pesos atuais, mas alguns totais podem não corresponder a uma combinação exata de acertos. Os pontos são limitados ao máximo individual, sem exigir que todos os cenários sejam conjuntamente possíveis para uma única corrida.')
+        st.caption('Nenhum palpite, gabarito ou ponto oficial é alterado. A pontuação real só muda após a homologação do resultado.')
+
+
 def visao_evolucao(analise):
     st.markdown('#### A corrida pela liderança')
     nomes = analise['tabela']['Usuario'].tolist()
@@ -1127,17 +1408,18 @@ def tela_classificacoes():
     if filtro!='Geral (Campeonato Completo)':
         st.caption(f'Grid filtrado por GP de {filtro}. Os destaques, o raio-X e as projeções usam o campeonato completo.')
     st.markdown(f'<div class="season-strip"><span>🏁 {len(analise["completos"])} GPs completos</span><span>⏳ {int((analise["calendario"]["Sessões pendentes"]>0).sum())} com sessões pendentes</span><span>⚡ {numero_br(analise["pontos_restantes"])} pontos ainda disponíveis por pessoa</span></div>',unsafe_allow_html=True)
-    podio_palpiteiros(tabela)
-    chances = tabela_chances(analise)
-    quadro_destaques(analise,chances)
     st.markdown('### Explore a disputa')
-    painel = st.radio('Central de classificação',['Tabela e equipes','Raio-X do palpiteiro','Corrida pelo título','Evolução e calendário'],horizontal=True,key='painel_classificacao')
+    painel = st.radio('Central de classificação',['Tabela e equipes','Mapa de ultrapassagens','Raio-X do palpiteiro','Corrida pelo título','Evolução e calendário'],horizontal=True,key='painel_classificacao')
     if painel=='Tabela e equipes':
+        podio_palpiteiros(tabela)
+        quadro_destaques(analise,tabela_chances(analise))
         visao_tabelas(analise,filtro)
+    elif painel=='Mapa de ultrapassagens':
+        visao_mapa_ultrapassagens(analise)
     elif painel=='Raio-X do palpiteiro':
         raio_x_palpiteiro(analise)
     elif painel=='Corrida pelo título':
-        visao_titulo(analise,chances)
+        visao_titulo(analise,tabela_chances(analise))
     else:
         visao_evolucao(analise)
 
