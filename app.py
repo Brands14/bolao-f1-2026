@@ -1,3 +1,6 @@
+"""Bolão F1 2026. Execute: streamlit run app.py.
+Mantém as assinaturas públicas, os cadastros, os CSVs e as regras originais.
+"""
 import base64
 import hmac
 import io
@@ -757,6 +760,38 @@ button[kind="primary"], button[data-testid="stBaseButton-primaryFormSubmit"] {ba
 def estilo_paddock():
     bandeira,carro,trofeu = arte_f1('bandeira'),arte_f1('carro'),arte_f1('trofeu')
     return '''<style>
+/* Programação do próximo fim de semana, em Brasília */
+.race-weekend {display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.45fr); gap:30px; padding:28px; margin:18px 0 28px; border:1px solid #533840; border-radius:20px; background:radial-gradient(ellipse at top left,#5a181f55,transparent 60%),linear-gradient(130deg,#201521,#111c2e);}
+.race-top {display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:19px;}
+.race-badge {display:inline-block; padding:6px 11px; border-radius:99px; background:#ff463e; color:white; font-size:10px; font-weight:850; letter-spacing:.07em;}
+.race-round {color:#b1a7b8; font-size:11px;} .race-weekend h2 {font-size:27px; padding:0; margin:0; display:block; line-height:1.25;}
+.race-country {display:inline-block; vertical-align:middle; margin-right:10px; color:#ffce82; border:1px solid #785248; border-radius:7px; background:#3a292b; font-size:12px; font-weight:850; padding:6px;}
+.race-circuit {font-size:14px; color:#b5b8cc; margin:10px 0 17px;}
+.race-location {color:#d1c5d0; font-size:12px; line-height:1.9;}
+.race-clock-label {font-size:9px; font-weight:800; letter-spacing:.15em; color:#c3a4ad; margin:23px 0 7px;}
+.race-countdown {display:flex; gap:23px; margin:4px 0 10px;}
+.race-countdown strong {display:block; font-size:31px; line-height:1.15; color:#ff7566; font-weight:850; font-variant-numeric:tabular-nums;}
+.race-countdown span {display:block; font-size:9px; color:#acabbf; letter-spacing:.1em; margin-top:5px;}
+.race-small {font-size:9px; color:#a59eaf; margin-top:10px; line-height:1.6;}
+.race-program {min-width:0; border:1px solid #3c3749; border-radius:14px; background:#0b1321c9; padding:18px 20px;}
+.race-program-title {font-size:10px; color:#a5b3ce; font-weight:700; letter-spacing:.09em; display:flex; justify-content:space-between; gap:10px; margin-bottom:15px;}
+.race-program-title>span {color:#8198b8; white-space:nowrap;}
+.race-row {display:flex; gap:12px; align-items:center; padding:11px 0; border-bottom:1px solid #293348; color:#d4def0; font-size:12px;}
+.race-session-name {flex:1; min-width:0;} .race-session-name>span {margin-right:7px;}
+.race-day {color:#8ca3c3; width:25px; text-align:right; font-size:10px;}
+.race-row time {font-size:11px; white-space:nowrap; color:#a8bbd5; font-variant-numeric:tabular-nums;}
+.race-row time b {font-size:14px; margin-left:7px; color:#edf4ff;}
+.race-main .race-session-name,.race-main time b {color:#ff8175; font-weight:800;}
+.race-next {background:linear-gradient(90deg,#1a303e66,transparent); border-radius:7px;}
+.race-past {opacity:.6;}
+.race-upnext {display:inline-block; margin-left:7px; padding:2px 5px; border-radius:4px; color:#8ce0c9; background:#18373c; font-size:8px; white-space:nowrap;}
+.race-next-session {color:#a8d7d8; font-size:10px; margin:16px 0 12px; line-height:1.6;}
+.race-source {display:flex; gap:7px; flex-wrap:wrap; flex-direction:column; padding-top:10px; border-top:1px solid #2a3448; font-size:9px; color:#899bb7; line-height:1.6;}
+.race-source a,.race-empty a {color:#95c8fb; text-decoration:none;}
+.race-started {color:#ffb78a; font-size:14px; font-weight:700; margin:10px 0;}
+.race-empty {padding:22px; border:1px solid #334a67; background:#152238; border-radius:14px; margin:20px 0; color:#bbcee6;}
+.race-empty p {font-size:12px; margin:12px 0;}
+@media(max-width:700px) {.race-weekend {grid-template-columns:1fr; gap:22px; padding:22px 18px;} .race-weekend h2 {font-size:25px;} .race-program {padding:16px 12px;} .race-row {gap:7px; font-size:11px;} .race-row time {font-size:10px;} .race-row time b {font-size:13px; margin-left:4px;} .race-session-name>span {margin-right:3px;} .race-program-title {font-size:9px; letter-spacing:.03em;} .race-upnext {font-size:7px; margin-left:4px;} .race-countdown strong {font-size:29px;} }
 /* Laboratório de ultrapassagens */
 .editorial-favorito {border-top:3px solid #e9b665; background:linear-gradient(135deg,#3b2d22,#121b2c);}
 .editorial-gasolina {border-top:3px solid #59d6bc; background:linear-gradient(135deg,#163735,#111d2d);}
@@ -955,8 +990,113 @@ def _dados_palpite(usuario,gp,tipo,valores,admin=False):
             'GP':gp,'Tipo':tipo,'Usuario':usuario,'Equipe':EQUIPE_POR_USUARIO.get(usuario,'Sem Equipe'), **valores}
 
 
+# Agenda oficial da reta final de 2026, conferida em 03/11/2026 em Formula1.com.
+# Os instantes são UTC; a interface sempre converte para America/Sao_Paulo.
+# Snapshot local para não acrescentar requisições de rede ao navegar no aplicativo.
+AGENDA_F1_CONFERIDA_EM = '03/11/2026'
+AGENDA_F1_2026 = [
+    {'GP':'Brasil','Titulo':'GP do Brasil','Circuito':'Interlagos · São Paulo','Pais':'Brasil','Codigo':'BR','Rodada':20,
+     'Fonte':'https://www.formula1.com/en/racing/2026/brazil',
+     'Sessoes':(('Treino Livre 1','2026-11-06T15:30:00+00:00'),
+                ('Treino Livre 2','2026-11-06T19:00:00+00:00'),
+                ('Treino Livre 3','2026-11-07T14:30:00+00:00'),
+                ('Classificação','2026-11-07T18:00:00+00:00'),
+                ('Corrida','2026-11-08T17:00:00+00:00'))},
+    {'GP':'Las Vegas','Titulo':'GP de Las Vegas','Circuito':'Las Vegas Strip Circuit','Pais':'Estados Unidos','Codigo':'US','Rodada':21,
+     'Fonte':'https://www.formula1.com/en/racing/2026/las-vegas',
+     'Sessoes':(('Treino Livre 1','2026-11-20T00:30:00+00:00'),
+                ('Treino Livre 2','2026-11-20T04:00:00+00:00'),
+                ('Treino Livre 3','2026-11-21T00:30:00+00:00'),
+                ('Classificação','2026-11-21T04:00:00+00:00'),
+                ('Corrida','2026-11-22T04:00:00+00:00'))},
+    {'GP':'Catar','Titulo':'GP do Catar','Circuito':'Lusail International Circuit','Pais':'Catar','Codigo':'QA','Rodada':22,
+     'Fonte':'https://www.formula1.com/en/racing/2026/qatar',
+     'Sessoes':(('Treino Livre 1','2026-11-27T13:30:00+00:00'),
+                ('Treino Livre 2','2026-11-27T17:00:00+00:00'),
+                ('Treino Livre 3','2026-11-28T14:30:00+00:00'),
+                ('Classificação','2026-11-28T18:00:00+00:00'),
+                ('Corrida','2026-11-29T16:00:00+00:00'))},
+    {'GP':'Abu Dhabi','Titulo':'GP de Abu Dhabi','Circuito':'Yas Marina Circuit','Pais':'Emirados Árabes Unidos','Codigo':'AE','Rodada':23,
+     'Fonte':'https://www.formula1.com/en/racing/2026/united-arab-emirates',
+     'Sessoes':(('Treino Livre 1','2026-12-04T09:30:00+00:00'),
+                ('Treino Livre 2','2026-12-04T13:00:00+00:00'),
+                ('Treino Livre 3','2026-12-05T10:30:00+00:00'),
+                ('Classificação','2026-12-05T14:00:00+00:00'),
+                ('Corrida','2026-12-06T13:00:00+00:00'))},
+]
+
+
+def agora_brasilia(agora=None):
+    instante = agora if agora is not None else datetime.now(fuso_br)
+    return fuso_br.localize(instante) if instante.tzinfo is None else instante.astimezone(fuso_br)
+
+
+def horarios_brasilia(evento):
+    horarios = [{'Sessao':nome,'Inicio':datetime.fromisoformat(inicio).astimezone(fuso_br)} for nome,inicio in evento['Sessoes']]
+    return sorted(horarios,key=lambda s:s['Inicio'])
+
+
+def proxima_corrida_agenda(agora=None,agenda=None):
+    hoje = agora_brasilia(agora).date()
+    eventos = AGENDA_F1_2026 if agenda is None else agenda
+    ordenados = sorted(eventos,key=lambda e:next(s['Inicio'] for s in horarios_brasilia(e) if s['Sessao']=='Corrida'))
+    # Mantém a programação durante todo o dia da corrida; passa à seguinte no dia posterior.
+    return next((e for e in ordenados if next(s['Inicio'] for s in horarios_brasilia(e) if s['Sessao']=='Corrida').date()>=hoje),None)
+
+
+def contagem_largada(evento,agora=None):
+    largada = next(s['Inicio'] for s in horarios_brasilia(evento) if s['Sessao']=='Corrida')
+    segundos = int((largada-agora_brasilia(agora)).total_seconds())
+    dias,resto = divmod(max(0,segundos),86400)
+    horas,resto = divmod(resto,3600)
+    minutos = resto//60
+    return {'Dias':dias,'Horas':horas,'Minutos':minutos,'Iniciada':segundos<=0}
+
+
+def html_cartao_horarios(agora=None):
+    instante = agora_brasilia(agora)
+    evento = proxima_corrida_agenda(instante)
+    if evento is None:
+        return '<div class="race-empty"><strong>🏁 Agenda de horários de 2026 concluída</strong><p>Os horários das quatro últimas etapas foram exibidos aqui. Consulte o calendário oficial para as próximas temporadas.</p><a href="https://www.formula1.com/en/racing/2026" target="_blank" rel="noopener noreferrer">Calendário oficial da F1 ↗</a></div>'
+    sessoes = horarios_brasilia(evento)
+    largada = next(s['Inicio'] for s in sessoes if s['Sessao']=='Corrida')
+    proxima = next((s for s in sessoes if s['Inicio']>instante),None)
+    dias_semana = ('seg','ter','qua','qui','sex','sáb','dom')
+    meses = ('janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro')
+    linhas = []
+    for sessao in sessoes:
+        nome,inicio = sessao['Sessao'],sessao['Inicio']
+        eh_proxima = proxima is not None and sessao is proxima
+        classe = 'race-row race-main' if nome=='Corrida' else 'race-row'
+        classe += ' race-next' if eh_proxima else ' race-past' if inicio<=instante else ''
+        icone = '🏁' if nome=='Corrida' else '⏱' if nome=='Classificação' else '🔧'
+        marcador = '<small class="race-upnext">A seguir</small>' if eh_proxima else ''
+        linhas.append(f'<div class="{classe}"><span class="race-session-name"><span aria-hidden="true">{icone}</span> {escape(nome)}{marcador}</span><span class="race-day">{dias_semana[inicio.weekday()]}</span><time datetime="{inicio.isoformat()}">{inicio:%d/%m} <b>{inicio:%H:%M}</b></time></div>')
+    contagem = contagem_largada(evento,instante)
+    if contagem['Iniciada']:
+        relogio = '<div class="race-started">🏁 Horário previsto da largada já alcançado</div>'
+        etiqueta = 'PROGRAMAÇÃO DO DIA'
+    else:
+        relogio = '<div class="race-countdown">'+''.join(f'<div><strong>{contagem[chave]:02d}</strong><span>{rotulo}</span></div>' for chave,rotulo in [('Dias','DIAS'),('Horas','HORAS'),('Minutos','MINUTOS')])+'</div>'
+        etiqueta = 'PRÓXIMA CORRIDA'
+    proxima_linha = f'Próxima sessão: {proxima["Sessao"]} · {proxima["Inicio"]:%d/%m às %H:%M}' if proxima else 'Consulte a F1 para acompanhar a realização das sessões.'
+    data_corrida = f'{largada.day:02d} de {meses[largada.month-1]} de {largada.year}'
+    return f'''<section class="race-weekend" aria-label="Programação da próxima corrida">
+<div class="race-info"><div class="race-top"><span class="race-badge">{etiqueta}</span><span class="race-round">Rodada {evento['Rodada']}</span></div>
+<h2><span class="race-country">{escape(evento['Codigo'])}</span>{escape(evento['Titulo'])}</h2><p class="race-circuit">{escape(evento['Circuito'])}</p>
+<div class="race-location">📅 Corrida: {escape(data_corrida)}<br/>📍 {escape(evento['Pais'])}</div>
+<div class="race-clock-label">PARA A LARGADA PREVISTA</div>{relogio}<div class="race-small">Contagem calculada ao abrir ou interagir com a página.</div></div>
+<div class="race-program"><div class="race-program-title">HORÁRIOS DAS SESSÕES · BRASÍLIA <span>UTC−3</span></div>{''.join(linhas)}
+<div class="race-next-session">{escape(proxima_linha)}</div><div class="race-source"><a href="{escape(evento['Fonte'],quote=True)}" target="_blank" rel="noopener noreferrer">Fonte: Formula1.com ↗</a><span>Conferido em {AGENDA_F1_CONFERIDA_EM} · sujeito a alterações</span></div></div></section>'''
+
+
+def cartao_horarios_inicio():
+    st.markdown(html_cartao_horarios(),unsafe_allow_html=True)
+
+
 def tela_enviar():
     hero('O próximo pódio começa aqui.', 'Escolha sua etapa, monte o grid e coloque seu conhecimento de Fórmula 1 na disputa.')
+    cartao_horarios_inicio()
     usuario = st.selectbox('Quem vai acelerar?', ['']+participantes, key='usuario_enviar')
     if not usuario:
         st.info('Selecione seu nome para preparar o próximo palpite.')
