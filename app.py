@@ -210,9 +210,10 @@ pilotos = [
     "Gabriel Bortoleto", "Nico Hülkenberg",
     "Alex Albon", "Carlos Sainz",
     "Pierre Gasly", "Franco Colapinto",
-    "Oliver Bearman", "Esteban Ocon",
+    "Oliver Bearman", "Ryo Hirakawa",
     "Liam Lawson", "Arvid Lindblad",
     "Sergio Pérez", "Valtteri Bottas",
+    "Esteban Ocon",
     "Nenhum / Outro"
 ]
 
