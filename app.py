@@ -1432,12 +1432,15 @@ def horarios_brasilia(evento):
     return sorted(horarios,key=lambda s:s['Inicio'])
 
 
-def proxima_corrida_agenda(agora=None,agenda=None):
+def proxima_corrida_agenda(agora=None,agenda=None,gabaritos=None):
     hoje = agora_brasilia(agora).date()
     eventos = AGENDA_F1_2026 if agenda is None else agenda
     ordenados = sorted(eventos,key=lambda e:next(s['Inicio'] for s in horarios_brasilia(e) if s['Sessao']=='Corrida'))
-    # Mantém a programação durante todo o dia da corrida; passa à seguinte no dia posterior.
-    return next((e for e in ordenados if next(s['Inicio'] for s in horarios_brasilia(e) if s['Sessao']=='Corrida').date()>=hoje),None)
+    homologados = set()
+    if gabaritos is not None and {'GP','Tipo'}.issubset(gabaritos.columns):
+        homologados = set(gabaritos.loc[gabaritos['Tipo'].eq('Corrida Principal'),'GP'])
+    # A homologação encerra o GP imediatamente; sem ela, mantém a programação do dia.
+    return next((e for e in ordenados if e['GP'] not in homologados and next(s['Inicio'] for s in horarios_brasilia(e) if s['Sessao']=='Corrida').date()>=hoje),None)
 
 
 def contagem_largada(evento,agora=None):
@@ -1449,9 +1452,9 @@ def contagem_largada(evento,agora=None):
     return {'Dias':dias,'Horas':horas,'Minutos':minutos,'Iniciada':segundos<=0}
 
 
-def html_cartao_horarios(agora=None):
+def html_cartao_horarios(agora=None,gabaritos=None):
     instante = agora_brasilia(agora)
-    evento = proxima_corrida_agenda(instante)
+    evento = proxima_corrida_agenda(instante,gabaritos=gabaritos)
     if evento is None:
         return '<div class="race-empty"><strong>🏁 Agenda de horários de 2026 concluída</strong><p>Os horários das quatro últimas etapas foram exibidos aqui. Consulte o calendário oficial para as próximas temporadas.</p><a href="https://www.formula1.com/en/racing/2026" target="_blank" rel="noopener noreferrer">Calendário oficial da F1 ↗</a></div>'
     sessoes = horarios_brasilia(evento)
@@ -1486,8 +1489,8 @@ def html_cartao_horarios(agora=None):
 <div class="race-next-session">{escape(proxima_linha)}</div><div class="race-source"><a href="{escape(evento['Fonte'],quote=True)}" target="_blank" rel="noopener noreferrer">Fonte: Formula1.com ↗</a><span>Conferido em {AGENDA_F1_CONFERIDA_EM} · sujeito a alterações</span></div></div></section>'''
 
 
-def cartao_horarios_inicio():
-    st.markdown(html_cartao_horarios(),unsafe_allow_html=True)
+def cartao_horarios_inicio(gabaritos=None):
+    st.markdown(html_cartao_horarios(gabaritos=gabaritos),unsafe_allow_html=True)
 
 
 # O relógio do servidor e o calendário cadastrado definem o fechamento dos palpites.
@@ -1597,13 +1600,13 @@ def ativar_relogio_prazos():
 
 def tela_enviar():
     hero('O próximo pódio começa aqui.', 'Escolha sua etapa, monte o grid e coloque seu conhecimento de Fórmula 1 na disputa.')
-    cartao_horarios_inicio()
+    gabaritos,_ = ler_dados(ARQUIVO_GABARITOS)
+    cartao_horarios_inicio(gabaritos)
     usuario = st.selectbox('Quem vai acelerar?', ['']+participantes, key='usuario_enviar')
     if not usuario:
         st.info('Selecione seu nome para preparar o próximo palpite.')
         return
     st.caption(EQUIPE_POR_USUARIO.get(usuario,'Sem Equipe'))
-    gabaritos,_ = ler_dados(ARQUIVO_GABARITOS)
     gps = gps_disponiveis_palpite(gabaritos)
     if not gps:
         st.info('Nenhuma sessão com prazo aberto na agenda cadastrada. Acompanhe Meus Palpites e a classificação.')
