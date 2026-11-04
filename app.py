@@ -172,6 +172,19 @@ def _ler_dados_remotos(arquivo):
         if exc.code == 404:
             return pd.DataFrame(), None
         raise
+    if arquivo == ARQUIVO_FOTOS and data.get('encoding') == 'none':
+        # O endpoint de conteúdo omite os bytes acima de 1 MB. Ler pelo SHA
+        # preserva a mesma versão usada no controle de alterações concorrentes.
+        sha = data['sha']
+        import re
+        if not re.fullmatch(r'[0-9a-fA-F]{40}',sha):
+            raise ValueError('Identificador inválido no cadastro de fotos.')
+        req = urllib.request.Request(f'https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/git/blobs/{sha}',headers=_headers())
+        with urllib.request.urlopen(req,timeout=15) as response:
+            blob = json.loads(response.read().decode())
+        if blob.get('sha') != sha or blob.get('encoding') != 'base64':
+            raise ValueError('Não foi possível validar a versão do cadastro de fotos.')
+        data['content'] = blob['content']
     conteudo = base64.b64decode(data['content']).decode('utf-8-sig')
     try:
         df = pd.read_csv(io.StringIO(conteudo))
@@ -718,7 +731,144 @@ def index_piloto(val):
     return INDICE_PILOTOS.get(str(val).strip() if pd.notna(val) else '', 0)
 
 
+# Fotos administradas persistem no repositório, sem depender do disco temporário do Render.
+ARQUIVO_FOTOS = 'fotos_personalizadas_2026.csv'
+COLUNAS_FOTOS = ['Categoria','Nome','Imagem','Atualizado_em']
+MAX_UPLOAD_FOTO = 5 * 1024 * 1024
+
+
+def chave_nome_foto(nome):
+    import unicodedata
+    chave = ''.join(c for c in unicodedata.normalize('NFKD',str(nome)).casefold() if c.isalnum() and not unicodedata.combining(c))
+    return {'alexanderalbon':'alexalbon','andreakimiantonelli':'kimiantonelli'}.get(chave,chave)
+
+
+def nomes_galeria(categoria):
+    return participantes if categoria=='Palpiteiros' else [p for p in pilotos if p and p!='Nenhum / Outro']
+
+
+def preparar_foto(conteudo):
+    """Valida e reencoda a imagem, removendo metadados e limitando seu tamanho."""
+    from PIL import Image, ImageOps, UnidentifiedImageError
+    if not conteudo or len(conteudo)>MAX_UPLOAD_FOTO:
+        raise ValueError('Escolha uma imagem de até 5 MB.')
+    try:
+        with Image.open(io.BytesIO(conteudo)) as original:
+            if original.format not in ('JPEG','PNG','WEBP'):
+                raise ValueError('Use uma foto JPG, PNG ou WEBP.')
+            if original.width*original.height>16000000:
+                raise ValueError('A imagem deve ter no máximo 16 megapixels.')
+            imagem = ImageOps.exif_transpose(original)
+            imagem.thumbnail((640,640),Image.Resampling.LANCZOS)
+            fundo = Image.new('RGB',imagem.size,'#172235')
+            if imagem.mode=='RGBA' or 'transparency' in imagem.info:
+                rgba = imagem.convert('RGBA')
+                fundo.paste(rgba,mask=rgba.getchannel('A'))
+            else:
+                fundo.paste(imagem.convert('RGB'))
+            saida = io.BytesIO()
+            fundo.save(saida,format='JPEG',quality=88,optimize=True)
+    except (UnidentifiedImageError,OSError,Image.DecompressionBombError,Image.DecompressionBombWarning) as erro:
+        raise ValueError('Não foi possível abrir essa foto. Escolha outro arquivo JPG, PNG ou WEBP.') from erro
+    return 'data:image/jpeg;base64,'+base64.b64encode(saida.getvalue()).decode()
+
+
+@st.cache_resource(ttl=20,show_spinner=False)
+def carregar_fotos_personalizadas():
+    if not GITHUB_TOKEN:
+        return {}
+    try:
+        df,_ = ler_dados(ARQUIVO_FOTOS)
+        if df.empty:
+            return {}
+        if not set(COLUNAS_FOTOS).issubset(df.columns):
+            raise ValueError('Cadastro de fotos inválido.')
+        return {(r['Categoria'],chave_nome_foto(r['Nome'])):r['Imagem']
+                for r in df.fillna('').to_dict('records')
+                if r['Categoria'] in ('Pilotos','Palpiteiros') and isinstance(r['Imagem'],str)
+                and r['Imagem'].startswith('data:image/jpeg;base64,')}
+    except (urllib.error.URLError,OSError,ValueError,KeyError):
+        logger.warning('Fotos personalizadas indisponíveis; mantendo as imagens padrão.')
+        return {}
+
+
+def foto_personalizada(categoria,nome):
+    return carregar_fotos_personalizadas().get((categoria,chave_nome_foto(nome)),'')
+
+
+def salvar_foto_administrada(categoria,nome,conteudo=None):
+    if categoria not in ('Pilotos','Palpiteiros') or nome not in nomes_galeria(categoria):
+        raise ValueError('Selecione um piloto ou palpiteiro cadastrado.')
+    imagem = preparar_foto(conteudo) if conteudo is not None else None
+    def atualizar(df):
+        if not df.empty and not set(COLUNAS_FOTOS).issubset(df.columns):
+            raise ValueError('O cadastro de fotos está inválido. Nenhuma foto foi alterada.')
+        df = df.reindex(columns=COLUNAS_FOTOS)
+        mascara = df['Categoria'].eq(categoria) & df['Nome'].map(chave_nome_foto).eq(chave_nome_foto(nome))
+        mantidas = df.loc[~mascara].copy()
+        if imagem is not None:
+            registro = {'Categoria':categoria,'Nome':nome,'Imagem':imagem,
+                        'Atualizado_em':agora_brasilia().isoformat()}
+            mantidas = pd.concat([mantidas,pd.DataFrame([registro])],ignore_index=True)
+        return mantidas,None
+    sucesso,_ = _atualizar_csv(ARQUIVO_FOTOS,atualizar,f'Atualiza foto: {categoria} - {nome}')
+    if not sucesso:
+        raise OSError('Não foi possível salvar a foto. Tente novamente.')
+    carregar_fotos_personalizadas.clear()
+    return True
+
+
+def acao_foto_admin(categoria,nome,chave_upload,restaurar=False):
+    senha = st.session_state.get('senha_admin','')
+    esperada = configuracao('SENHA_ADMIN',SENHA_ADMIN_LEGADA)
+    if not senha or not hmac.compare_digest(senha.encode(),esperada.encode()):
+        st.session_state['aviso_foto'] = ('error','Autentique-se como administrador para alterar fotos.')
+        return
+    arquivo = st.session_state.get(chave_upload)
+    if not restaurar and arquivo is None:
+        st.session_state['aviso_foto'] = ('warning','Selecione a nova foto antes de salvar.')
+        return
+    try:
+        salvar_foto_administrada(categoria,nome,None if restaurar else arquivo.getvalue())
+    except (urllib.error.URLError,OSError,ValueError,KeyError) as erro:
+        mensagem = str(erro) if isinstance(erro,ValueError) else 'Não foi possível salvar a foto. Confira a conexão e a permissão de gravação no repositório.'
+        st.session_state['aviso_foto'] = ('error',mensagem)
+        return
+    mensagem = f'Imagem padrão de {nome} restaurada.' if restaurar else f'Foto de {nome} atualizada.'
+    st.session_state['aviso_foto'] = ('success',mensagem)
+
+
+def admin_fotos():
+    secao('FOTOS DO BOLÃO','Gerenciar fotos')
+    st.caption('Cadastre ou substitua fotos. As alterações ficam salvas no repositório e aparecem nos cartões, rankings e na aba Fórmula 1.')
+    aviso = st.session_state.pop('aviso_foto',None)
+    if aviso:
+        {'success':st.success,'warning':st.warning,'error':st.error}[aviso[0]](aviso[1])
+    categoria = st.radio('Quem deseja atualizar?',['Palpiteiros','Pilotos'],horizontal=True,key='fotos_categoria')
+    nome = st.selectbox('Selecione o nome',nomes_galeria(categoria),key='fotos_nome_'+categoria)
+    atual = foto_personalizada(categoria,nome)
+    if categoria=='Palpiteiros':
+        st.markdown(avatar_html(nome),unsafe_allow_html=True)
+    else:
+        exibir_foto_piloto(nome)
+    st.caption('Foto personalizada cadastrada.' if atual else 'Sem foto personalizada: usando a imagem padrão, quando disponível.')
+    chave_upload = 'upload_foto_'+categoria+'_'+nome
+    arquivo = st.file_uploader('Nova foto · JPG, PNG ou WEBP · até 5 MB',type=['jpg','jpeg','png','webp'],key=chave_upload)
+    if arquivo is not None:
+        try:
+            st.image(preparar_foto(arquivo.getvalue()),width=160,caption='Prévia da nova foto')
+        except ValueError as erro:
+            st.warning(str(erro))
+    st.button('Salvar foto',use_container_width=True,on_click=acao_foto_admin,args=(categoria,nome,chave_upload))
+    st.button('Restaurar imagem padrão',disabled=not bool(atual),key='restaurar_foto_'+categoria+'_'+nome,
+              on_click=acao_foto_admin,args=(categoria,nome,chave_upload,True))
+
+
 def exibir_foto_piloto(nome):
+    personalizada = foto_personalizada('Pilotos',nome)
+    if personalizada:
+        st.image(personalizada,width=64)
+        return
     if nome == 'Ryo Hirakawa':
         st.markdown(f'<img src="{arte_f1("capacete")}" width="64" alt="Ilustração de capacete"/>',unsafe_allow_html=True)
         st.caption('Ryo Hirakawa · Haas')
@@ -780,6 +930,9 @@ def _arquivo_imagem_uri(caminho):
 
 
 def foto_participante(nome):
+    personalizada = foto_personalizada('Palpiteiros',nome)
+    if personalizada:
+        return personalizada
     from pathlib import Path
     # Fotos próprias no repositório têm prioridade sobre os links da referência.
     raiz = Path(__file__).resolve().parent / 'assets' / 'palpiteiros'
@@ -2360,7 +2513,7 @@ def admin_excluir():
 
 def tela_admin():
     hero('Direção de prova.', 'Gerencie os palpites, homologue os resultados e acompanhe os registros do campeonato.', 'ÁREA ADMINISTRATIVA')
-    senha = st.text_input('Senha do diretor de prova',type='password')
+    senha = st.text_input('Senha do diretor de prova',type='password',key='senha_admin')
     esperada = configuracao('SENHA_ADMIN',SENHA_ADMIN_LEGADA)
     if not senha:
         return
@@ -2368,12 +2521,11 @@ def tela_admin():
         st.error('Senha de administrador incorreta.')
         return
     st.caption('Painel administrativo · acesso autorizado')
-    painel_teste_email()
     # Radio executa apenas a seção ativa, ao contrário de cinco abas executadas a cada interação.
-    painel = st.radio('Painel',['Auditoria e edição','Histórico','Homologar resultado','Gabaritos salvos','Excluir registro','E-mails de apuração'],horizontal=True)
+    painel = st.radio('Painel',['Auditoria e edição','Histórico','Homologar resultado','Gabaritos salvos','Excluir registro','E-mails de apuração','Gerenciar fotos'],horizontal=True)
     {'Auditoria e edição':admin_auditoria,'Histórico':admin_historico,
      'Homologar resultado':admin_gabarito,'Gabaritos salvos':admin_gabaritos_salvos,
-     'Excluir registro':admin_excluir,'E-mails de apuração':admin_emails_apuracao}[painel]()
+     'Excluir registro':admin_excluir,'E-mails de apuração':admin_emails_apuracao,'Gerenciar fotos':admin_fotos}[painel]()
 
 
 # ── Central pública de Fórmula 1: independente dos palpites do bolão ──
@@ -2625,8 +2777,8 @@ def avatar_piloto_f1(registro,fotos,tamanho='mini'):
     nome = registro['Piloto'];codigo = registro.get('Código','')
     iniciais = str(codigo or ''.join(p[0] for p in nome.split()[:2]))
     fundo = _svg_uri(f'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" rx="50" fill="#293b58"/><text x="50" y="61" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#f4f6fc">{escape(iniciais)}</text></svg>')
-    url = fotos.get(codigo,{}).get('foto','')
-    imagem = (f'url(&quot;{escape(_url_foto_f1(url),quote=True)}&quot;), ' if _url_foto_f1(url) else '')+f'url(&quot;{fundo}&quot;)'
+    url = foto_personalizada('Pilotos',nome) or _url_foto_f1(fotos.get(codigo,{}).get('foto',''))
+    imagem = (f'url(&quot;{escape(url,quote=True)}&quot;), ' if url else '')+f'url(&quot;{fundo}&quot;)'
     return f'<span class="avatar avatar-{tamanho}" role="img" aria-label="{escape(nome,quote=True)}" style="background-image:{imagem};background-position:center top;"></span>'
 
 
