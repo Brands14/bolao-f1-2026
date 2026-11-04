@@ -1,7 +1,7 @@
 Id,Usuario,GP,Email,Revisao,Estado,Total_GP,Parcial,Reservado_em,Atualizado_em
-apuracao_269dbe67dedc4b9cbca95710b384ec70,Rodolfo Brandão,Brasil,rodolfo.fleury@gmail.com,6ffbc7528cceb630679c9851634ccf27375bd229c65f9ff686e985b6237722cc,Resetado,160.0,False,2026-11-04T19:29:18.140079+00:00,2026-11-04T22:22:14.875742+00:00
-apuracao_af2646384aec44fd8c5f8cfc3633be1f,Rodolfo Brandão,Brasil,rodolfo.fleury@gmail.com,df51fb24a9da9e0f2e8039213774c8873e59508962a8d3df4b48513ea69b5444,Resetado,260.0,False,2026-11-04T20:15:40.331339+00:00,2026-11-04T22:22:14.875742+00:00
-reset_gp_1e113c978df4491f9fc77675afb6d349,Administração,Brasil,,,Resetado,,,2026-11-04T22:22:11.944237+00:00,2026-11-04T22:22:14.875742+00:00
-apuracao_fd74f4e968bd4aac9f8e5ca2abb515e3,Delvânia Belo,Brasil,del.gomes04@gmail.com,e7c03142de126ab054e50f08b8055a37c080ba2d7d7b613c5fbfa4e34b855911,Aceito,375.0,False,2026-11-04T23:05:37.740247+00:00,2026-11-04T23:05:40.709853+00:00
-apuracao_bf6e8050684d4e03a93d7234df5abd14,Rodolfo Brandão,Brasil,rodolfo.fleury@gmail.com,911f292d76945e03c32da250d36409ac8d80ba577e6e59c811340fe8dd7d01dc,Aceito,0.0,False,2026-11-04T23:05:37.740247+00:00,2026-11-04T23:05:40.709853+00:00
-reset_gp_ce3f4e16ecce45ec82db30c5843e5872,Administração,Brasil,,,Resetando,,,2026-11-04T23:13:07.860963+00:00,2026-11-04T23:13:07.860963+00:00
+apuracao_269dbe67dedc4b9cbca95710b384ec70,Rodolfo Brandão,Brasil,rodolfo.fleury@gmail.com,6ffbc7528cceb630679c9851634ccf27375bd229c65f9ff686e985b6237722cc,Resetado,160.0,False,2026-11-04T19:29:18.140079+00:00,2026-11-04T23:13:10.851746+00:00
+apuracao_af2646384aec44fd8c5f8cfc3633be1f,Rodolfo Brandão,Brasil,rodolfo.fleury@gmail.com,df51fb24a9da9e0f2e8039213774c8873e59508962a8d3df4b48513ea69b5444,Resetado,260.0,False,2026-11-04T20:15:40.331339+00:00,2026-11-04T23:13:10.851746+00:00
+reset_gp_1e113c978df4491f9fc77675afb6d349,Administração,Brasil,,,Resetado,,,2026-11-04T22:22:11.944237+00:00,2026-11-04T23:13:10.851746+00:00
+apuracao_fd74f4e968bd4aac9f8e5ca2abb515e3,Delvânia Belo,Brasil,del.gomes04@gmail.com,e7c03142de126ab054e50f08b8055a37c080ba2d7d7b613c5fbfa4e34b855911,Resetado,375.0,False,2026-11-04T23:05:37.740247+00:00,2026-11-04T23:13:10.851746+00:00
+apuracao_bf6e8050684d4e03a93d7234df5abd14,Rodolfo Brandão,Brasil,rodolfo.fleury@gmail.com,911f292d76945e03c32da250d36409ac8d80ba577e6e59c811340fe8dd7d01dc,Resetado,0.0,False,2026-11-04T23:05:37.740247+00:00,2026-11-04T23:13:10.851746+00:00
+reset_gp_ce3f4e16ecce45ec82db30c5843e5872,Administração,Brasil,,,Resetado,,,2026-11-04T23:13:07.860963+00:00,2026-11-04T23:13:10.851746+00:00
