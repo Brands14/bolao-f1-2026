@@ -1,6 +1,3 @@
-"""Bolão F1 2026. Execute: streamlit run app.py.
-Mantém as assinaturas públicas, os cadastros, os CSVs e as regras originais.
-"""
 import base64
 import hmac
 import io
@@ -11,7 +8,7 @@ import os
 import smtplib
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import escape
@@ -241,6 +238,8 @@ def registrar_historico(usuario, gp, tipo, acao):
 
 def guardar_dados(novos_dados, nome_arquivo, eh_edicao_admin=False):
     def substituir(df):
+        if nome_arquivo==ARQUIVO_DADOS and 'Usuario' in novos_dados and not eh_edicao_admin:
+            _validar_gravacao_palpite(novos_dados)
         mascara = _mascara_registro(df, novos_dados) if not df.empty else pd.Series(False, index=df.index)
         alteracao = bool(mascara.any()) and 'Usuario' in novos_dados
         return pd.concat([df.loc[~mascara], pd.DataFrame([novos_dados])], ignore_index=True), alteracao
@@ -249,6 +248,9 @@ def guardar_dados(novos_dados, nome_arquivo, eh_edicao_admin=False):
                 f"Atualizado Gabarito: {novos_dados.get('GP', 'Oficial')} ({novos_dados.get('Tipo', '')})")
     try:
         sucesso, alteracao = _atualizar_csv(nome_arquivo, substituir, mensagem)
+    except PalpiteBloqueadoError as erro:
+        st.error(str(erro))
+        return False
     except Exception:
         logger.exception('Falha ao salvar CSV')
         st.error('Não foi possível salvar no GitHub. Confira a conexão e as permissões e tente novamente.')
@@ -1387,7 +1389,7 @@ def _dados_palpite(usuario,gp,tipo,valores,admin=False):
 # Agenda oficial da reta final de 2026, conferida em 03/11/2026 em Formula1.com.
 # Os instantes são UTC; a interface sempre converte para America/Sao_Paulo.
 # Snapshot local para não acrescentar requisições de rede ao navegar no aplicativo.
-AGENDA_F1_CONFERIDA_EM = '03/11/2026'
+AGENDA_F1_CONFERIDA_EM = '04/11/2026'
 AGENDA_F1_2026 = [
     {'GP':'Brasil','Titulo':'GP do Brasil','Circuito':'Interlagos · São Paulo','Pais':'Brasil','Codigo':'BR','Rodada':20,
      'Fonte':'https://www.formula1.com/en/racing/2026/brazil',
@@ -1488,6 +1490,111 @@ def cartao_horarios_inicio():
     st.markdown(html_cartao_horarios(),unsafe_allow_html=True)
 
 
+# O relógio do servidor e o calendário cadastrado definem o fechamento dos palpites.
+ANTECEDENCIA_PALPITE = timedelta(minutes=1)
+NOMES_HORARIO_PALPITE = {
+    'Classificação Principal (Pole)':('Classificação',),
+    'Corrida Principal':('Corrida',),
+    'Qualy Sprint (Pole)':('Classificação Sprint','Qualificação Sprint','Sprint Qualifying','Qualy Sprint'),
+    'Corrida Sprint':('Sprint','Corrida Sprint'),
+}
+
+
+class PalpiteBloqueadoError(ValueError):
+    pass
+
+
+def estado_prazo_palpite(gp,tipo,gabaritos,agora=None,agenda=None):
+    estado = {'aberto':False,'inicio':None,'limite':None,'motivo':''}
+    if tipo not in sessoes_disponiveis(gp):
+        estado['motivo']='Esta sessão não está cadastrada para o GP.';return estado
+    if not gabaritos.empty:
+        if not {'GP','Tipo'}.issubset(gabaritos.columns):
+            estado['motivo']='Não foi possível validar a situação dos gabaritos.';return estado
+        tipos = set(gabaritos.loc[gabaritos['GP']==gp,'Tipo'])
+        if 'Corrida Principal' in tipos:
+            estado['motivo']='Este GP já tem a corrida principal homologada e não recebe novos palpites.';return estado
+        if tipo in tipos:
+            estado['motivo']='Esta sessão já foi homologada e não recebe novos palpites.';return estado
+    eventos = AGENDA_F1_2026 if agenda is None else agenda
+    try:
+        evento = [e for e in eventos if e['GP']==gp]
+        if len(evento)!=1:
+            raise ValueError('Agenda ausente ou duplicada.')
+        candidatos = [inicio for nome,inicio in evento[0]['Sessoes'] if nome in NOMES_HORARIO_PALPITE.get(tipo,())]
+        if len(candidatos)!=1:
+            raise ValueError('Sessão sem um horário único.')
+        inicio = datetime.fromisoformat(candidatos[0])
+        if inicio.tzinfo is None:
+            raise ValueError('Horário sem fuso.')
+        inicio = inicio.astimezone(fuso_br)
+    except (KeyError,TypeError,ValueError,AttributeError):
+        estado['motivo']='Horário da sessão não cadastrado ou inválido. O envio fica bloqueado até a organização conferir a agenda.';return estado
+    limite = inicio-ANTECEDENCIA_PALPITE
+    estado.update(inicio=inicio,limite=limite)
+    if agora_brasilia(agora)>=limite:
+        estado['motivo']=f'Palpites encerrados em {limite:%d/%m/%Y às %H:%M:%S} (Brasília), um minuto antes desta sessão.'
+        return estado
+    estado['aberto']=True
+    estado['motivo']=f'Envios e alterações permitidos até antes de {limite:%d/%m/%Y às %H:%M:%S} (Brasília).'
+    return estado
+
+
+def gps_disponiveis_palpite(gabaritos,agora=None,agenda=None):
+    instante = agora_brasilia(agora)
+    eventos = AGENDA_F1_2026 if agenda is None else agenda
+    # Sem horário validado não há abertura por omissão; etapas antigas não voltam após um reset.
+    return [gp for gp in lista_gps if any(estado_prazo_palpite(gp,tipo,gabaritos,instante,eventos)['aberto'] for tipo in sessoes_disponiveis(gp))]
+
+
+def _validar_gravacao_palpite(dados):
+    # Leitura fresca: uma página antiga não ignora uma homologação feita por outro administrador.
+    gabaritos,_ = _ler_dados_remotos(ARQUIVO_GABARITOS)
+    estado = estado_prazo_palpite(dados['GP'],dados['Tipo'],gabaritos)
+    if not estado['aberto']:
+        _ler_dados_cache.clear()
+        raise PalpiteBloqueadoError(estado['motivo'])
+
+
+def seletor_etapa_palpite(gps,gabaritos):
+    if st.session_state.get('envio_gp') not in gps:
+        st.session_state.pop('envio_gp',None)
+    c1,c2 = st.columns(2)
+    with c1:
+        gp = st.selectbox('Grande Prêmio',gps,key='envio_gp')
+    tipos = sessoes_disponiveis(gp)
+    if st.session_state.get('envio_tipo') not in tipos:
+        st.session_state.pop('envio_tipo',None)
+    abertas = [t for t in tipos if estado_prazo_palpite(gp,t,gabaritos)['aberto']]
+    if 'envio_tipo' not in st.session_state:
+        st.session_state['envio_tipo'] = abertas[0] if abertas else tipos[0]
+    # Índice padrão estável: o Streamlit antigo não recria o seletor quando o relógio muda.
+    with c2:
+        tipo = st.selectbox('Sessão',tipos,key='envio_tipo')
+    return gp,tipo
+
+
+def quadro_prazos_palpite(gp,gabaritos):
+    linhas = []
+    agora = agora_brasilia()
+    for tipo in sessoes_disponiveis(gp):
+        estado = estado_prazo_palpite(gp,tipo,gabaritos,agora)
+        linhas.append({'Sessão':tipo,
+                       'Início (Brasília)':estado['inicio'].strftime('%d/%m %H:%M') if estado['inicio'] else '—',
+                       'Fechamento (Brasília)':estado['limite'].strftime('%d/%m %H:%M:%S') if estado['limite'] else '—',
+                       'Situação':'🟢 Aberta' if estado['aberto'] else '🔒 Encerrada'})
+    st.dataframe(pd.DataFrame(linhas),use_container_width=True,hide_index=True)
+    st.caption(f'🔒 Tranca de segurança: o prazo é validado pelo servidor ao gravar, inclusive em uma página aberta antes do fechamento. Horário de referência: {agora:%d/%m/%Y %H:%M:%S} (Brasília). Agenda conferida em {AGENDA_F1_CONFERIDA_EM}.')
+
+
+def ativar_relogio_prazos():
+    # Reutiliza o pequeno relógio incorporado; sem serviço externo ou dependência nova.
+    import streamlit.components.v1 as componentes
+    componente = componentes.declare_component('bolao_f1_prazo_palpites',path=_pasta_relogio_f1())
+    chave = 'relogio_prazos_palpites'
+    componente(interval=60000,counter=st.session_state.get(chave,0),default=0,key=chave)
+
+
 def tela_enviar():
     hero('O próximo pódio começa aqui.', 'Escolha sua etapa, monte o grid e coloque seu conhecimento de Fórmula 1 na disputa.')
     cartao_horarios_inicio()
@@ -1497,13 +1604,23 @@ def tela_enviar():
         return
     st.caption(EQUIPE_POR_USUARIO.get(usuario,'Sem Equipe'))
     gabaritos,_ = ler_dados(ARQUIVO_GABARITOS)
-    realizados = set(gabaritos['GP']) if not gabaritos.empty else set()
-    gps = [gp for gp in lista_gps if gp not in realizados]
+    gps = gps_disponiveis_palpite(gabaritos)
     if not gps:
-        st.info('Todas as etapas já possuem gabarito. Acompanhe a classificação do campeonato.')
+        st.info('Nenhuma sessão com prazo aberto na agenda cadastrada. Acompanhe Meus Palpites e a classificação.')
         return
     secao('01 / ETAPA','Escolha sua disputa')
-    gp,tipo = seletor_etapa('envio',gps)
+    gp,tipo = seletor_etapa_palpite(gps,gabaritos)
+    quadro_prazos_palpite(gp,gabaritos)
+    try:
+        ativar_relogio_prazos()
+    except (OSError,RuntimeError):
+        st.caption('Os prazos continuam sendo conferidos ao gravar o palpite.')
+    estado = estado_prazo_palpite(gp,tipo,gabaritos)
+    if not estado['aberto']:
+        st.warning('🔒 '+estado['motivo'])
+        st.info('Escolha outra sessão ou etapa com prazo aberto. Seus palpites anteriores continuam em Meus Palpites.')
+        return
+    st.info('🔒 '+estado['motivo'])
     df,_ = ler_dados(ARQUIVO_DADOS)
     existente = ultimo_registro(df,gp,tipo,usuario)
     if existente:
