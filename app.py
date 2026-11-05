@@ -1,6 +1,3 @@
-"""Bolão F1 2026. Execute: streamlit run app.py.
-Mantém as assinaturas públicas, os cadastros, os CSVs e as regras originais.
-"""
 import base64
 import hmac
 import io
@@ -107,7 +104,7 @@ sprint_gps = ["China", "Miami", "Canadá", "Reino Unido", "Holanda", "Singapura"
 
 SENHA_ADMIN_LEGADA = 'fleury1475'
 fuso_br = pytz.timezone('America/Sao_Paulo')
-URL_VIDEO_GITHUB = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/f1_bg.mp4"
+URL_VIDEO_GITHUB = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/main/f1_bg_2026.mp4"
 EQUIPE_POR_USUARIO = {membro: equipe for equipe, membros in equipes.items() for membro in membros}
 # Atualização do grid solicitada pelo organizador; nomes antigos continuam no histórico.
 PILOTOS_INATIVOS = {'Esteban Ocon'}
