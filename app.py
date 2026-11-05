@@ -1,3 +1,6 @@
+"""Bolão F1 2026. Execute: streamlit run app.py.
+Mantém as assinaturas públicas, os cadastros, os CSVs e as regras originais.
+"""
 import base64
 import hmac
 import io
@@ -25,6 +28,10 @@ GITHUB_USER = "Brands14"
 GITHUB_REPO = "bolao-f1-2026"
 
 EMAIL_ADMIN = "palpitesf12026@gmail.com"
+
+# Bancada de testes: todos os e-mails ficam somente com o administrador.
+# Manter ativo até a liberação explícita da plataforma para os palpiteiros.
+BLOQUEAR_EMAILS_PALPITEIROS = True
 
 ARQUIVO_DADOS = "palpites_permanentes_2026.csv"
 
@@ -319,7 +326,12 @@ def _endereco_email_simples(valor):
     return isinstance(valor,str) and bool(re.fullmatch(r'[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+',valor))
 
 
+def destinatario_email(email_destino):
+    return EMAIL_ADMIN if BLOQUEAR_EMAILS_PALPITEIROS else email_destino
+
+
 def _enviar_email_brevo(assunto,texto,html,email_destino,copia_admin=True):
+    email_destino = destinatario_email(email_destino)
     if not BREVO_API_KEY or not _endereco_email_simples(email_destino) or not _endereco_email_simples(EMAIL_REMETENTE):
         logger.warning('E-mail Brevo não enviado: configuração ou endereço inválido.')
         return False
@@ -388,9 +400,10 @@ def painel_teste_email():
 
 
 def _enviar_recibo_smtp(dados, email_destino):
+    email_destino = destinatario_email(email_destino)
     msg = MIMEMultipart()
     msg['From'] = EMAIL_ADMIN
-    msg['To'] = ', '.join([EMAIL_ADMIN, email_destino])
+    msg['To'] = ', '.join([EMAIL_ADMIN] if email_destino.casefold()==EMAIL_ADMIN.casefold() else [EMAIL_ADMIN,email_destino])
     msg['Subject'] = f"🏁 Recibo de Palpite F1 - {dados['Usuario']} - GP {dados['GP']} ({dados['Tipo']})"
     corpo = (f"Olá {dados['Usuario']},\n\nSeu palpite foi registrado/atualizado com sucesso no Bolão F1 2026!\n\n"
              f"--- REGISTRO OFICIAL ---\nGrande Prêmio: {dados['GP']}\nSessão: {dados['Tipo']}\n"
@@ -520,7 +533,7 @@ def preparar_emails_apuracao(palpites,gabaritos,gp):
         relatorio = detalhar_apuracao_gp(palpites,gabaritos,usuario,gp)
         if not relatorio['corrida_homologada']:
             continue
-        revisao = sha256(json.dumps({'email':email.casefold(),'relatorio':relatorio},ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        revisao = sha256(json.dumps({'email':destinatario_email(email).casefold(),'relatorio':relatorio},ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
         tarefas.append({'id':'apuracao_'+uuid4().hex,'usuario':usuario,'gp':gp,'email':email,
                         'revisao':revisao,'relatorio':relatorio})
     return tarefas,sem_email
@@ -570,7 +583,7 @@ def reservar_emails_apuracao(tarefas,forcar_pendencias=False):
             tarefa = dict(tarefa,atualizacao=not anteriores.empty)
             selecionadas.append(tarefa)
             novos.append({'Id':tarefa['id'],'Usuario':tarefa['usuario'],'GP':tarefa['gp'],
-                          'Email':tarefa['email'],'Revisao':tarefa['revisao'],'Estado':'Em envio',
+                          'Email':destinatario_email(tarefa['email']),'Revisao':tarefa['revisao'],'Estado':'Em envio',
                           'Total_GP':tarefa['relatorio']['total'],'Parcial':str(tarefa['relatorio']['parcial']),
                           'Reservado_em':agora.isoformat(),'Atualizado_em':agora.isoformat()})
         contexto = {'tarefas':selecionadas,'ignoradas':ignoradas}
@@ -1805,7 +1818,7 @@ def tela_enviar():
             if not enviar_recibo_email(dados,email.strip()):
                 st.warning('Seu palpite está salvo. Não foi possível confirmar o envio do recibo por e-mail. Consulte Meus Palpites; não é necessário enviar o palpite novamente.')
             else:
-                st.caption('Comprovante encaminhado ao serviço de e-mail. Confira também a pasta de spam.')
+                st.caption('Modo de testes: comprovante encaminhado somente ao administrador.' if BLOQUEAR_EMAILS_PALPITEIROS else 'Comprovante encaminhado ao serviço de e-mail. Confira também a pasta de spam.')
 
 
 def tela_meus_palpites():
@@ -2413,7 +2426,7 @@ def admin_historico():
 
 def admin_emails_apuracao():
     st.subheader('E-mails de apuração do GP')
-    st.caption('Compare o palpite com os gabaritos homologados e envie o total individual. As mensagens são enviadas ao e-mail cadastrado de quem palpitou no GP, com cópia oculta para o bolão.')
+    st.caption('Modo de testes: os relatórios individuais são enviados somente para '+EMAIL_ADMIN+'. Os envios aos palpiteiros estão bloqueados.' if BLOQUEAR_EMAILS_PALPITEIROS else 'Compare o palpite com os gabaritos homologados e envie o total individual. As mensagens são enviadas ao e-mail cadastrado de quem palpitou no GP, com cópia oculta para o bolão.')
     palpites,_ = ler_dados(ARQUIVO_DADOS)
     gabaritos,_ = ler_dados(ARQUIVO_GABARITOS)
     publicados = set(gabaritos['GP'].dropna()) if not gabaritos.empty else set()
