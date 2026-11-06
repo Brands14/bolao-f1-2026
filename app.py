@@ -115,7 +115,7 @@ URL_VIDEO_GITHUB = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REP
 EQUIPE_POR_USUARIO = {membro: equipe for equipe, membros in equipes.items() for membro in membros}
 # Atualização do grid solicitada pelo organizador; nomes antigos continuam no histórico.
 PILOTOS_INATIVOS = {'Esteban Ocon'}
-EQUIPES_PILOTOS = {'Oliver Bearman', 'Ryo Hirakawa', 'Rafael Câmara'}
+EQUIPES_PILOTOS = {'Oliver Bearman': 'Haas', 'Ryo Hirakawa': 'Haas', 'Rafael Câmara': 'Haas'}
 INDICE_PILOTOS = {nome: i for i, nome in enumerate(pilotos)}
 CAMPOS_PALPITE = ['Pole'] + [f'P{i}' for i in range(1, 11)] + [
     'VoltaRapida', 'PrimeiroAbandono', 'MaisUltrapassagens']
