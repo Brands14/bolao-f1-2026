@@ -1,6 +1,3 @@
-"""Bolão F1 2026. Execute: streamlit run app.py.
-Mantém as assinaturas públicas, os cadastros, os CSVs e as regras originais.
-"""
 import base64
 import hmac
 import io
@@ -2776,12 +2773,14 @@ def ativar_relogio_f1(ano):
         # O relógio pode vencer antes do TTL por causa do tempo da primeira consulta.
         # Invalidar aqui garante nova tentativa a cada sinal de cinco minutos.
         carregar_central_f1.clear()
+        consultar_sessoes_openf1.clear()
         st.session_state[ultima] = valor
 
 
 def atualizar_central_f1():
     consultar_f1_publica.clear()
     carregar_central_f1.clear()
+    consultar_sessoes_openf1.clear()
 
 
 def avatar_piloto_f1(registro,fotos,tamanho='mini'):
@@ -2900,6 +2899,133 @@ def ultimo_resultado_f1(dados,fotos):
         st.dataframe(pd.DataFrame(registros)[['Posição','Piloto','Equipe','Grid','Ganho de posições','Voltas','Pontos','Tempo / diferença','Status','Melhor volta']],use_container_width=True,hide_index=True)
 
 
+OPENF1_API = 'https://api.openf1.org/v1'
+NOMES_SESSOES_F1 = {
+    'Practice 1': 'Treino livre 1',
+    'Practice 2': 'Treino livre 2',
+    'Practice 3': 'Treino livre 3',
+    'Qualifying': 'Classificação',
+    'Sprint Qualifying': 'Classificação sprint',
+    'Sprint Shootout': 'Classificação sprint',
+    'Sprint': 'Sprint',
+    'Race': 'Corrida',
+}
+
+
+@st.cache_data(ttl=F1_INTERVALO_ATUALIZACAO, max_entries=128, show_spinner=False)
+def consultar_sessoes_openf1(endpoint, parametro, valor):
+    registros = _http_json_f1(f'{OPENF1_API}/{endpoint}?{parametro}={int(valor)}')
+    if not isinstance(registros, list) or any(not isinstance(r, dict) for r in registros):
+        raise ValueError('Resposta inesperada do OpenF1.')
+    return registros
+
+
+def data_sessao_f1(registro):
+    instante = datetime.fromisoformat(registro['date_start'].replace('Z', '+00:00'))
+    return instante.astimezone(fuso_br)
+
+
+def tempo_sessao_f1(valor, diferenca=False):
+    if valor is None:
+        return '—'
+    if isinstance(valor, str):
+        return valor
+    if diferenca:
+        return f'+{valor:.3f}' if valor else '—'
+    minutos, milissegundos = divmod(round(valor * 1000), 60000)
+    segundos, resto = divmod(milissegundos, 1000)
+    return f'{minutos}:{segundos:02d}.{resto:03d}'
+
+
+def tabela_sessao_openf1(resultados, pilotos_sessao, nome_sessao):
+    pilotos_por_numero = {str(p['driver_number']): p for p in pilotos_sessao}
+    classificacao = nome_sessao in ('Qualifying', 'Sprint Qualifying', 'Sprint Shootout')
+    linhas = []
+    for r in sorted(resultados, key=lambda r: int(r.get('position') or 999)):
+        numero = str(r['driver_number'])
+        piloto = pilotos_por_numero.get(numero, {})
+        linha = {
+            'Posição': str(r.get('position') or '—'),
+            'Nº': numero,
+            'Piloto': piloto.get('full_name') or piloto.get('broadcast_name') or f'Piloto #{numero}',
+            'Equipe': piloto.get('team_name') or '—',
+        }
+        duracao = r.get('duration')
+        if classificacao:
+            fases = ('SQ1', 'SQ2', 'SQ3') if nome_sessao != 'Qualifying' else ('Q1', 'Q2', 'Q3')
+            tempos = duracao if isinstance(duracao, list) else [duracao]
+            for i, fase in enumerate(fases):
+                linha[fase] = tempo_sessao_f1(tempos[i] if i < len(tempos) else None)
+        else:
+            coluna = 'Melhor volta' if nome_sessao.startswith('Practice') else 'Tempo total'
+            linha[coluna] = tempo_sessao_f1(duracao)
+            linha['Diferença para o líder'] = tempo_sessao_f1(r.get('gap_to_leader'), diferenca=True)
+        linha['Voltas'] = r.get('number_of_laps')
+        linha['Situação'] = next((sigla for sigla in ('dsq', 'dns', 'dnf') if r.get(sigla)), '').upper()
+        linhas.append(linha)
+    return pd.DataFrame(linhas)
+
+
+def tela_gp_openf1(ano):
+    st.subheader('Resultados por sessão')
+    st.caption('Horários de Brasília. Os resultados aparecem conforme a publicação pela fonte.')
+    st.markdown('[Fonte: OpenF1](https://openf1.org/)')
+    agora = agora_brasilia()
+    try:
+        gps = sorted(
+            (gp for gp in consultar_sessoes_openf1('meetings', 'year', ano)
+             if 'Grand Prix' in gp.get('meeting_name', '') and not gp.get('is_cancelled')),
+            key=data_sessao_f1,
+        )
+        if not gps:
+            st.info('A fonte ainda não publicou etapas para esta temporada.')
+            return
+        iniciado = [i for i, gp in enumerate(gps) if data_sessao_f1(gp) <= agora]
+        por_id = {gp['meeting_key']: gp for gp in gps}
+
+        def rotulo_gp(chave):
+            gp = por_id[chave]
+            nome = gp['meeting_name'].removesuffix(' Grand Prix')
+            return f"GP de {nome} · {data_sessao_f1(gp):%d/%m}"
+
+        gp_id = st.selectbox('Grande Prêmio', list(por_id), index=iniciado[-1] if iniciado else 0,
+                             format_func=rotulo_gp, key=f'f1_gp_{ano}')
+        sessoes = sorted(
+            (s for s in consultar_sessoes_openf1('sessions', 'meeting_key', gp_id)
+             if s.get('session_name') in NOMES_SESSOES_F1 and not s.get('is_cancelled')),
+            key=data_sessao_f1,
+        )
+        if not sessoes:
+            st.info('A programação de sessões ainda não está disponível.')
+            return
+        por_sessao = {s['session_key']: s for s in sessoes}
+        iniciadas = [i for i, s in enumerate(sessoes) if data_sessao_f1(s) <= agora]
+
+        def rotulo_sessao(chave):
+            sessao = por_sessao[chave]
+            return f"{NOMES_SESSOES_F1[sessao['session_name']]} · {data_sessao_f1(sessao):%d/%m %H:%M}"
+
+        sessao_id = st.selectbox('Sessão', list(por_sessao), index=iniciadas[-1] if iniciadas else 0,
+                                 format_func=rotulo_sessao, key=f'f1_sessao_{gp_id}')
+        sessao = por_sessao[sessao_id]
+        if data_sessao_f1(sessao) > agora:
+            st.info('Sessão programada. O resultado será exibido após a publicação.')
+            return
+        resultados = consultar_sessoes_openf1('session_result', 'session_key', sessao_id)
+        if not resultados:
+            st.info('Resultado ainda não publicado. Consulte novamente após a sessão.')
+            return
+        try:
+            pilotos_sessao = consultar_sessoes_openf1('drivers', 'session_key', sessao_id)
+        except (OSError, ValueError):
+            pilotos_sessao = []
+            st.caption('Cadastro de pilotos indisponível na fonte. A tabela usa os números dos carros.')
+        st.dataframe(tabela_sessao_openf1(resultados, pilotos_sessao, sessao['session_name']),
+                     hide_index=True, use_container_width=True)
+    except (OSError, ValueError, KeyError, TypeError):
+        st.warning('O OpenF1 está indisponível ou retornou dados incompletos. Tente “Consultar atualização da F1” mais tarde.')
+
+
 def tela_formula1():
     hero('O mundial passa por aqui.', 'Pilotos, construtores e o último resultado publicado da Fórmula 1, em um só lugar.', 'CENTRAL FÓRMULA 1')
     ano_atual = agora_brasilia().year
@@ -2914,6 +3040,10 @@ def tela_formula1():
             ativar_relogio_f1(ano)
         except (OSError,RuntimeError):
             st.info('A atualização contínua não iniciou nesta sessão. Você pode usar o botão de atualização.')
+    painel = st.radio('Explorar Fórmula 1',['Pilotos','Construtores','Última corrida','GP do fim de semana'],horizontal=True,key='f1_painel')
+    if painel == 'GP do fim de semana':
+        tela_gp_openf1(ano)
+        return
     with st.spinner('Consultando o mundial de Fórmula 1…'):
         pacotes = carregar_central_f1(ano)
     fotos = pacotes.get('fotos',{})
@@ -2928,7 +3058,6 @@ def tela_formula1():
     rodadas = {d['rodada'] for d in (pilotos_f1,equipes_f1,resultado_f1) if d and d['rodada']}
     if len(rodadas)>1:
         st.info('Os quadros estão em etapas diferentes de publicação. Confira a rodada informada em cada seção; isso também pode ocorrer durante um fim de semana com Sprint.')
-    painel = st.radio('Explorar Fórmula 1',['Pilotos','Construtores','Última corrida'],horizontal=True,key='f1_painel')
     tipo = {'Pilotos':'pilotos','Construtores':'equipes','Última corrida':'resultado'}[painel]
     if indicador_fonte_f1(pacotes[tipo],painel):
         dados = pacotes[tipo]['dados']
