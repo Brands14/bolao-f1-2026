@@ -1958,7 +1958,78 @@ def visao_tabelas(analise,filtro):
         st.caption('As equipes somam os pontos dos seus integrantes, conforme o cadastro atual.')
 
 
-def raio_x_palpiteiro(analise):
+def estatisticas_raio_x(analise,palpites,nome):
+    """Acertos por sessão, sequências e colocação do palpiteiro em cada GP."""
+    matriz = analise['matriz']
+    sessoes = analise['sessoes']
+    pessoais = palpites.loc[palpites['Usuario']==nome] if not palpites.empty else palpites
+    tipos = list(MAX_PONTOS_SESSAO)
+    contagem = {(tipo,campo): [0,0,0] for tipo in tipos for campo in campos_sessao(tipo)}
+    bonus = dict.fromkeys((300,450,600),0)
+    relatorios = {}
+    historico = []
+    concluidos = set(analise['completos'])
+    participantes_gp = sessoes.groupby('GP')['Usuario'].unique()
+
+    for gp in matriz.index:
+        relatorio = detalhar_apuracao_gp(pessoais,analise['gabaritos'],nome,gp)
+        relatorios[gp] = relatorio
+        podio_exato = False
+        acertos_gp = 0
+        for sessao in relatorio['sessoes']:
+            if not (sessao['homologada'] and sessao['enviado']):
+                continue
+            tipo = sessao['tipo']
+            certos = set()
+            for linha in sessao['linhas']:
+                if linha['resultado']=='—':
+                    continue
+                dados = contagem[tipo,linha['campo']]
+                dados[1] += 1
+                if linha['estado']=='Acerto':
+                    dados[0] += 1
+                    dados[2] += linha['pontos']
+                    certos.add(linha['campo'])
+            acertos_gp += len(certos)
+            if tipo=='Corrida Principal':
+                podio_exato = {'P1','P2','P3'} <= certos
+                if sessao['bonus'] in bonus:
+                    bonus[sessao['bonus']] += 1
+
+        ativos = participantes_gp.get(gp,[])
+        posicao = None
+        if gp in concluidos and nome in ativos and matriz.at[gp,nome]>0:
+            pontos = matriz.loc[gp,ativos]
+            posicao = 1 + int((pontos>pontos[nome]).sum())
+        historico.append({
+            'GP':gp, 'Acertos':acertos_gp, 'Pódio exato da F1':podio_exato,
+            'Posição no bolão':posicao,
+        })
+
+    podios_f1 = {linha['GP']:linha['Pódio exato da F1'] for linha in historico
+                 if relatorios[linha['GP']]['corrida_homologada']}
+    podios_bolao = {linha['GP']:linha['Posição no bolão'] in (1,2,3) for linha in historico
+                    if linha['GP'] in concluidos}
+    calendario = analise['calendario']['GP'].tolist()
+    sequencias = []
+    for podios in (podios_f1,podios_bolao):
+        ultimo = max((i for i,gp in enumerate(calendario) if gp in podios),default=-1)
+        atual = recorde = 0
+        for gp in calendario[:ultimo+1]:
+            atual = atual+1 if podios.get(gp,False) else 0
+            recorde = max(recorde,atual)
+        sequencias.extend((atual,recorde))
+
+    categorias = pd.DataFrame([
+        {'Sessão':tipo,'Item':ROTULOS[campo],'Acertos':acertos,'Avaliados':avaliados,
+         'Precisão':f'{100*acertos/avaliados:.1f}%'.replace('.',',') if avaliados else '—',
+         'Pontos dos acertos':pontos}
+        for (tipo,campo),(acertos,avaliados,pontos) in contagem.items()
+    ])
+    return categorias,bonus,historico,relatorios,sequencias
+
+
+def raio_x_palpiteiro(analise,palpites):
     tabela = analise['tabela']
     nome = st.selectbox('Quem você quer acompanhar?',tabela['Usuario'].tolist(),key='raiox_usuario')
     r = tabela.loc[tabela['Usuario']==nome].iloc[0]
@@ -1976,15 +2047,44 @@ def raio_x_palpiteiro(analise):
     st.info(f'{situacao_titulo(r["Pontos"],lider,restantes)} · Teto individual: {numero_br(r["Pontos"]+restantes)} pontos se acertar tudo o que falta apurar.')
     if r['Distância do líder']>0 and restantes>0:
         st.caption(f'Precisa descontar {numero_br(r["Distância do líder"])} pontos para empatar com a pontuação atual do líder. Os adversários também continuarão pontuando.')
+    categorias,bonus,historico,relatorios,sequencias = estatisticas_raio_x(analise,palpites,nome)
+    st.markdown('#### Acertos por categoria')
+    st.dataframe(categorias,use_container_width=True,hide_index=True)
+    st.caption('Cada posição é avaliada na ordem exata. A precisão considera apenas os campos com resultado válido das sessões em que houve palpite.')
+    st.markdown('#### Pódios, sequências e bônus')
+    podios_f1 = sum(linha['Pódio exato da F1'] for linha in historico)
+    posicoes = [linha['Posição no bolão'] for linha in historico if linha['Posição no bolão'] is not None]
+    c1,c2,c3 = st.columns(3)
+    c1.metric('Pódios exatos da F1',podios_f1)
+    c2.metric('Vitórias no bolão por GP',posicoes.count(1))
+    c3.metric('Pódios no bolão por GP',sum(posicao<=3 for posicao in posicoes))
+    atual,recorde,atual_bolao,recorde_bolao = sequencias
+    st.write(f'**Pódio exato da F1:** sequência atual de {atual} GPs · recorde de {recorde} GPs.')
+    st.write(f'**Pódio no bolão:** sequência atual de {atual_bolao} GPs · recorde de {recorde_bolao} GPs.')
+    st.write(f'**Bônus na corrida principal:** Top 3 × {bonus[300]} · Top 5 × {bonus[450]} · Top 10 × {bonus[600]}.')
+    st.caption('Pódio exato da F1 significa acertar 1º, 2º e 3º na ordem da corrida principal. O pódio no bolão usa a pontuação de cada GP concluído, entre quem pontuou, com empates na mesma posição. Os bônus são exclusivos por corrida.')
     matriz = analise['matriz']
     if not matriz.empty:
-        st.markdown('#### Seu campeonato, etapa a etapa')
+        st.markdown('#### Campeonato etapa a etapa')
         evolucao = matriz[[nome]].cumsum()
         evolucao.index.name = 'GP'
         st.line_chart(evolucao)
         detalhes = pd.DataFrame({'GP':matriz.index,'Pontos no GP':matriz[nome].values,'Total acumulado':evolucao[nome].values})
         detalhes['Apuração'] = detalhes['GP'].map(analise['calendario'].set_index('GP')['Status']).fillna('Fora do calendário')
+        detalhes = detalhes.merge(pd.DataFrame(historico),on='GP')
         st.dataframe(detalhes,use_container_width=True,hide_index=True)
+        with st.expander('Conferir palpites e resultados de um GP'):
+            gp = st.selectbox('GP para detalhar',list(reversed(relatorios)),key='raiox_detalhe_gp')
+            for sessao in relatorios[gp]['sessoes']:
+                if not (sessao['homologada'] and sessao['enviado']):
+                    continue
+                st.markdown(f'**{sessao["tipo"]}**')
+                linhas = pd.DataFrame(sessao['linhas']).rename(columns={
+                    'rotulo':'Item','palpite':'Palpite','resultado':'Resultado','pontos':'Pontos','estado':'Status',
+                })
+                st.dataframe(linhas[['Item','Palpite','Resultado','Pontos','Status']],use_container_width=True,hide_index=True)
+            if not any(s['homologada'] and s['enviado'] for s in relatorios[gp]['sessoes']):
+                st.info('Sem palpites com resultado homologado neste GP.')
     st.caption(f'{int(r["Acertos"])} acertos em {int(r["Campos avaliados"])} campos oficiais válidos nas sessões enviadas; campos em branco no palpite contam como erro. A precisão é informativa e não substitui os pontos ponderados do regulamento.')
 
 
@@ -2234,7 +2334,7 @@ def tela_classificacoes():
     elif painel=='Mapa de ultrapassagens':
         visao_mapa_ultrapassagens(analise)
     elif painel=='Raio-X do palpiteiro':
-        raio_x_palpiteiro(analise)
+        raio_x_palpiteiro(analise,palpites)
     elif painel=='Corrida pelo título':
         visao_titulo(analise,tabela_chances(analise))
     else:
