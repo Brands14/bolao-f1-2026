@@ -536,17 +536,17 @@ def preparar_emails_apuracao(palpites,gabaritos,gp):
     return tarefas,sem_email
 
 
-def _alterar_livro_apuracao(transformar):
+def _alterar_livro_apuracao(transformar,arquivo=ARQUIVO_EMAIL_APURACOES,colunas=COLUNAS_EMAIL_APURACOES):
     # Reserva em lote com SHA: dois administradores não disparam a mesma revisão.
     for tentativa in range(3):
-        df,sha = _ler_dados_remotos(ARQUIVO_EMAIL_APURACOES)
-        if not df.empty and not set(COLUNAS_EMAIL_APURACOES).issubset(df.columns):
+        df,sha = _ler_dados_remotos(arquivo)
+        if not df.empty and not set(colunas).issubset(df.columns):
             raise ValueError('Controle de envios com estrutura inválida.')
         novo,contexto = transformar(df)
         if novo is None:
             return contexto
         try:
-            if not _escrever_csv(ARQUIVO_EMAIL_APURACOES,novo,sha,'Controle de apurações por e-mail'):
+            if not _escrever_csv(arquivo,novo,sha,'Controle de envios por e-mail'):
                 raise OSError('Reserva de envios não confirmada.')
             return contexto
         except urllib.error.HTTPError as erro:
@@ -2521,6 +2521,161 @@ def admin_historico():
         st.dataframe(df.iloc[::-1],use_container_width=True,hide_index=True)
 
 
+ARQUIVO_EMAIL_LEMBRETES = 'envios_lembretes_2026.csv'
+COLUNAS_EMAIL_LEMBRETES = ['Id','Usuario','GP','Tipo','Limite','Modo','Email','Estado','Atualizado_em']
+URL_PLATAFORMA = configuracao('URL_PLATAFORMA','https://bolao-f1-2026.onrender.com/')
+ANTECEDENCIA_LEMBRETE = timedelta(minutes=30)
+
+
+def preparar_lembretes(palpites,gabaritos,gp,tipo,agora=None):
+    prazo = estado_prazo_palpite(gp,tipo,gabaritos,agora)
+    if not prazo['aberto']:
+        return prazo,[],[]
+    enviados = set()
+    if not palpites.empty:
+        enviados = set(palpites.loc[(palpites['GP']==gp)&(palpites['Tipo']==tipo),'Usuario'].dropna())
+    tarefas = []; sem_email = []
+    for usuario in participantes:
+        if usuario in enviados:
+            continue
+        email = emails_autorizados.get(usuario,'').strip()
+        if not _endereco_email_simples(email):
+            sem_email.append(usuario)
+            continue
+        tarefas.append({'Usuario':usuario,'GP':gp,'Tipo':tipo,'Limite':prazo['limite'].isoformat(),
+                        'Modo':'Teste' if BLOQUEAR_EMAILS_PALPITEIROS else 'Participantes',
+                        'Email':destinatario_email(email)})
+    return prazo,tarefas,sem_email
+
+
+def montar_email_lembrete(tarefa,agora=None):
+    limite = datetime.fromisoformat(tarefa['Limite']).astimezone(fuso_br)
+    minutos = max(0,int((limite-agora_brasilia(agora)).total_seconds()//60))
+    assunto = f"🏁 Palpites F1 — falta seu palpite para {tarefa['GP']} ({tarefa['Tipo']})"
+    texto = (f"Olá, {tarefa['Usuario']}!\n\nAinda não encontramos seu palpite para o GP de "
+             f"{tarefa['GP']} — {tarefa['Tipo']}.\n"
+             f"Prazo final: {limite:%d/%m/%Y às %H:%M:%S} (Brasília). "
+             f"Restam aproximadamente {minutos} minutos. Envie antes desse horário.\n\n"
+             f"Acesse para palpitar: {URL_PLATAFORMA}\n\n"
+             "Se você acabou de enviar, confira seu comprovante e desconsidere este lembrete.")
+    if tarefa['Modo']=='Teste':
+        assunto = '[TESTE ADMIN] '+assunto
+        texto = 'Prévia de lembrete para '+tarefa['Usuario']+'. Enviado somente ao administrador.\n\n'+texto
+    html = '<div style="font-family:Arial,sans-serif;line-height:1.6">'+''.join(
+        '<p>'+escape(paragrafo).replace('\n','<br>')+'</p>' for paragrafo in texto.split('\n\n'))
+    html += f'<p><a href="{escape(URL_PLATAFORMA,quote=True)}">Abrir Palpites F1</a></p></div>'
+    return assunto,texto,html
+
+
+def _livro_lembretes(transformar):
+    return _alterar_livro_apuracao(transformar,ARQUIVO_EMAIL_LEMBRETES,COLUNAS_EMAIL_LEMBRETES)
+
+
+def enviar_lembretes(gp,tipo):
+    from uuid import uuid4
+    resumo = {'aceitos':0,'verificar':0,'cancelados':0,'ignorados':0,'sem_email':[],'erro':None}
+    resultados = {}
+    try:
+        if not BREVO_API_KEY:
+            raise ValueError('Configure a chave Brevo antes de enviar lembretes.')
+        palpites,_ = _ler_dados_remotos(ARQUIVO_DADOS)
+        gabaritos,_ = _ler_dados_remotos(ARQUIVO_GABARITOS)
+        prazo,tarefas,sem_email = preparar_lembretes(palpites,gabaritos,gp,tipo)
+        resumo['sem_email']=sem_email
+        if not prazo['aberto']:
+            raise ValueError(prazo['motivo'])
+        if not BLOQUEAR_EMAILS_PALPITEIROS and agora_brasilia()<prazo['limite']-ANTECEDENCIA_LEMBRETE:
+            raise ValueError('O envio aos participantes abre 30 minutos antes do fechamento.')
+        def reservar(df):
+            novas = []
+            for tarefa in tarefas:
+                anteriores = df.loc[(df['Usuario']==tarefa['Usuario'])&(df['GP']==gp)&
+                    (df['Tipo']==tipo)&(df['Modo']==tarefa['Modo'])&
+                    (df['Limite']==tarefa['Limite'])&~df['Estado'].isin(['Cancelado'])] if not df.empty else pd.DataFrame()
+                if not anteriores.empty:
+                    resumo['ignorados']+=1
+                    continue
+                novas.append(dict(tarefa,Id=uuid4().hex,Estado='Em envio',
+                                  Atualizado_em=datetime.now(pytz.UTC).isoformat()))
+            return (pd.concat([df,pd.DataFrame(novas)],ignore_index=True) if novas else None),novas
+        reservadas = _livro_lembretes(reservar)
+        for tarefa in reservadas:
+            # Releitura imediatamente antes de cada mensagem para excluir quem
+            # palpitou depois da prévia ou enquanto o lote estava em andamento.
+            palpites,_ = _ler_dados_remotos(ARQUIVO_DADOS)
+            gabaritos,_ = _ler_dados_remotos(ARQUIVO_GABARITOS)
+            prazo,pendentes,_ = preparar_lembretes(palpites,gabaritos,gp,tipo)
+            if not prazo['aberto'] or tarefa['Usuario'] not in {p['Usuario'] for p in pendentes}:
+                resultados[tarefa['Id']]='Cancelado'
+                resumo['cancelados']+=1
+                continue
+            # Uma falha/timeout após a tentativa fica pendente de conferência.
+            # O lote reservado impede reenvio por outro clique ou administrador.
+            resultados[tarefa['Id']]='Verificar'
+            assunto,texto,html = montar_email_lembrete(tarefa)
+            aceito = _enviar_email_brevo(assunto,texto,html,tarefa['Email'],copia_admin=False)
+            resultados[tarefa['Id']]='Aceito' if aceito else 'Verificar'
+            resumo['aceitos' if aceito else 'verificar']+=1
+    except (OSError,ValueError,KeyError,TypeError,RuntimeError) as erro:
+        logger.warning('Lote de lembretes interrompido (%s).',type(erro).__name__)
+        resumo['erro']='Não foi possível concluir o lote. Confira o controle de envios antes de continuar.'
+        if isinstance(erro,ValueError):
+            resumo['erro']=str(erro)
+    finally:
+        if resultados:
+            def concluir(df):
+                novo=df.copy()
+                for identificador,estado in resultados.items():
+                    novo.loc[novo['Id']==identificador,['Estado','Atualizado_em']]=[estado,datetime.now(pytz.UTC).isoformat()]
+                return novo,None
+            try:
+                _livro_lembretes(concluir)
+            except (OSError,ValueError,KeyError,TypeError,RuntimeError):
+                resumo['erro']='Envios tentados, mas o controle final não foi atualizado. Confira os logs do Brevo. As reservas impedem duplicação.'
+    return resumo
+
+
+def admin_lembretes():
+    st.subheader('Lembretes de palpites por e-mail')
+    st.write('Selecione a sessão e envie um aviso para quem ainda não palpitou. O botão envia imediatamente durante os 30 minutos finais antes do fechamento.')
+    st.caption('O administrador precisa abrir este painel e clicar para enviar. O fechamento ocorre um minuto antes do início da sessão.')
+    if BLOQUEAR_EMAILS_PALPITEIROS:
+        st.info('Modo de testes ativo. Todos os lembretes chegam somente a '+EMAIL_ADMIN+'. Você pode testar uma sessão aberta antes da janela de 30 minutos.')
+    try:
+        palpites,_=ler_dados(ARQUIVO_DADOS)
+        gabaritos,_=ler_dados(ARQUIVO_GABARITOS)
+        gps=gps_disponiveis_palpite(gabaritos)
+        if not gps:
+            st.info('Não há sessões abertas com horário cadastrado.')
+            return
+        gp=st.selectbox('GP do lembrete',gps,key='lembrete_gp')
+        tipos=[t for t in sessoes_disponiveis(gp) if estado_prazo_palpite(gp,t,gabaritos)['aberto']]
+        tipo=st.selectbox('Sessão do lembrete',tipos,key='lembrete_tipo')
+        prazo,tarefas,sem_email=preparar_lembretes(palpites,gabaritos,gp,tipo)
+        st.write(f"Janela de envio: {prazo['limite']-ANTECEDENCIA_LEMBRETE:%d/%m/%Y %H:%M:%S} até antes de {prazo['limite']:%H:%M:%S} (Brasília).")
+        if sem_email:
+            st.warning('Sem e-mail válido cadastrado: '+', '.join(sem_email))
+        st.write(f'{len(tarefas)} palpiteiros ainda sem palpite e com e-mail cadastrado.')
+        if tarefas:
+            st.dataframe(pd.DataFrame(tarefas)[['Usuario','Email']].rename(columns={'Usuario':'Palpiteiro','Email':'Destino do envio'}),use_container_width=True,hide_index=True)
+        controle,_=ler_dados(ARQUIVO_EMAIL_LEMBRETES)
+        if not controle.empty:
+            st.dataframe(controle.loc[(controle['GP']==gp)&(controle['Tipo']==tipo),
+                         ['Usuario','Modo','Estado','Atualizado_em']],use_container_width=True,hide_index=True)
+        st.caption('Aceito significa aceito pelo Brevo. Verificar ou Em envio requer conferência nos logs e bloqueia novas tentativas. Cada pessoa recebe no máximo um aviso por sessão, horário de fechamento e modo de envio.')
+        janela=prazo['aberto'] and (BLOQUEAR_EMAILS_PALPITEIROS or agora_brasilia()>=prazo['limite']-ANTECEDENCIA_LEMBRETE)
+        if not janela:
+            st.info('O botão será liberado nos 30 minutos finais. Atualize o painel quando chegar o horário.')
+        if st.button('Enviar lembretes agora',key='enviar_lembretes',disabled=not tarefas or not janela or not BREVO_API_KEY):
+            with st.spinner('Conferindo os palpites e enviando lembretes…'):
+                resumo=enviar_lembretes(gp,tipo)
+            if resumo['erro']:
+                st.error(resumo['erro'])
+            st.info(f"Aceitos pelo Brevo: {resumo['aceitos']}. Para conferir: {resumo['verificar']}. Já reservados/avisados: {resumo['ignorados']}. Cancelados por palpite enviado ou sessão fechada: {resumo['cancelados']}.")
+    except (OSError,ValueError,KeyError,TypeError,RuntimeError):
+        st.error('Não foi possível carregar o painel. Confira os dados e tente novamente.')
+
+
 def admin_emails_apuracao():
     st.subheader('E-mails de apuração do GP')
     st.caption('Modo de testes: os relatórios individuais são enviados somente para '+EMAIL_ADMIN+'. Os envios aos palpiteiros estão bloqueados.' if BLOQUEAR_EMAILS_PALPITEIROS else 'Compare o palpite com os gabaritos homologados e envie o total individual. As mensagens são enviadas ao e-mail cadastrado de quem palpitou no GP, com cópia oculta para o bolão.')
@@ -2630,10 +2785,10 @@ def tela_admin():
         return
     st.caption('Painel administrativo · acesso autorizado')
     # Radio executa apenas a seção ativa, ao contrário de cinco abas executadas a cada interação.
-    painel = st.radio('Painel',['Auditoria e edição','Histórico','Homologar resultado','Gabaritos salvos','Excluir registro','E-mails de apuração','Gerenciar fotos'],horizontal=True)
+    painel = st.radio('Painel',['Auditoria e edição','Histórico','Homologar resultado','Gabaritos salvos','Excluir registro','E-mails de apuração','Lembretes de palpites','Gerenciar fotos'],horizontal=True)
     {'Auditoria e edição':admin_auditoria,'Histórico':admin_historico,
      'Homologar resultado':admin_gabarito,'Gabaritos salvos':admin_gabaritos_salvos,
-     'Excluir registro':admin_excluir,'E-mails de apuração':admin_emails_apuracao,'Gerenciar fotos':admin_fotos}[painel]()
+     'Excluir registro':admin_excluir,'E-mails de apuração':admin_emails_apuracao,'Lembretes de palpites':admin_lembretes,'Gerenciar fotos':admin_fotos}[painel]()
 
 
 # ── Central pública de Fórmula 1: independente dos palpites do bolão ──
