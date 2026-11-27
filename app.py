@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import escape
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import pandas as pd
 import pytz
@@ -1342,7 +1342,10 @@ def estilo_paddock():
 .race-row time b {font-size:14px; margin-left:7px; color:#edf4ff;}
 .race-main .race-session-name,.race-main time b {color:#ff8175; font-weight:800;}
 .race-next {background:linear-gradient(90deg,#1a303e66,transparent); border-radius:7px;}
-.race-past {opacity:.6;}
+.race-past {opacity:1;}
+a.race-row {text-decoration:none; border-radius:6px;}
+a.race-row:hover, a.race-row:focus-visible {background:#1b2b42; outline:2px solid #62d7c2; outline-offset:3px;}
+.race-result {display:inline-block; color:#7fe2cd; font-size:10px; margin-left:8px; font-weight:700;}
 .race-upnext {display:inline-block; margin-left:7px; padding:2px 5px; border-radius:4px; color:#8ce0c9; background:#18373c; font-size:8px; white-space:nowrap;}
 .race-next-session {color:#a8d7d8; font-size:10px; margin:16px 0 12px; line-height:1.6;}
 .race-source {display:flex; gap:7px; flex-wrap:wrap; flex-direction:column; padding-top:10px; border-top:1px solid #2a3448; font-size:9px; color:#899bb7; line-height:1.6;}
@@ -1631,7 +1634,9 @@ def html_cartao_horarios(agora=None,gabaritos=None):
         classe += ' race-next' if eh_proxima else ' race-past' if inicio<=instante else ''
         icone = '🏁' if nome=='Corrida' else '⏱' if nome=='Classificação' else '🔧'
         marcador = '<small class="race-upnext">A seguir</small>' if eh_proxima else ''
-        linhas.append(f'<div class="{classe}"><span class="race-session-name"><span aria-hidden="true">{icone}</span> {escape(nome)}{marcador}</span><span class="race-day">{dias_semana[inicio.weekday()]}</span><time datetime="{inicio.isoformat()}">{inicio:%d/%m} <b>{inicio:%H:%M}</b></time></div>')
+        destino = '?' + urlencode({'f1_gp':evento['GP'], 'f1_sessao':nome})
+        acao = 'Ver resultado' if inicio <= instante else 'Ver sessão'
+        linhas.append(f'<a class="{classe}" href="{escape(destino,quote=True)}" target="_self" aria-label="{escape(nome + " · " + acao,quote=True)}"><span class="race-session-name"><span aria-hidden="true">{icone}</span> {escape(nome)}{marcador}<small class="race-result">{acao} →</small></span><span class="race-day">{dias_semana[inicio.weekday()]}</span><time datetime="{inicio.isoformat()}">{inicio:%d/%m} <b>{inicio:%H:%M}</b></time></a>')
     contagem = contagem_largada(evento,instante)
     if contagem['Iniciada']:
         relogio = '<div class="race-started">🏁 Horário previsto da largada já alcançado</div>'
@@ -1647,7 +1652,7 @@ def html_cartao_horarios(agora=None,gabaritos=None):
 <div class="race-location">📅 Corrida: {escape(data_corrida)}<br/>📍 {escape(evento['Pais'])}</div>
 <div class="race-clock-label">PARA A LARGADA PREVISTA</div>{relogio}<div class="race-small">Contagem calculada ao abrir ou interagir com a página.</div></div>
 <div class="race-program"><div class="race-program-title">HORÁRIOS DAS SESSÕES · BRASÍLIA <span>UTC−3</span></div>{''.join(linhas)}
-<div class="race-next-session">{escape(proxima_linha)}</div><div class="race-source"><a href="{escape(evento['Fonte'],quote=True)}" target="_blank" rel="noopener noreferrer">Fonte: Formula1.com ↗</a><span>Conferido em {AGENDA_F1_CONFERIDA_EM} · sujeito a alterações</span></div></div></section>'''
+<div class="race-next-session">{escape(proxima_linha)}<br/>Clique em uma sessão para consultar os resultados, conforme publicação pela fonte.</div><div class="race-source"><a href="{escape(evento['Fonte'],quote=True)}" target="_blank" rel="noopener noreferrer">Fonte: Formula1.com ↗</a><span>Conferido em {AGENDA_F1_CONFERIDA_EM} · sujeito a alterações</span></div></div></section>'''
 
 
 def cartao_horarios_inicio(gabaritos=None):
@@ -3169,10 +3174,76 @@ NOMES_SESSOES_F1 = {
 
 @st.cache_data(ttl=F1_INTERVALO_ATUALIZACAO, max_entries=128, show_spinner=False)
 def consultar_sessoes_openf1(endpoint, parametro, valor):
-    registros = _http_json_f1(f'{OPENF1_API}/{endpoint}?{parametro}={int(valor)}')
+    try:
+        registros = _http_json_f1(f'{OPENF1_API}/{endpoint}?{parametro}={int(valor)}')
+    except urllib.error.HTTPError as erro:
+        if erro.code == 404 and endpoint in ('session_result', 'stints', 'drivers'):
+            return []
+        raise
     if not isinstance(registros, list) or any(not isinstance(r, dict) for r in registros):
         raise ValueError('Resposta inesperada do OpenF1.')
     return registros
+
+
+def destino_sessao_f1(gp, sessao, agenda=None):
+    """Aceita apenas etapas e sessões cadastradas; sem URLs externas no destino."""
+    for evento in AGENDA_F1_2026 if agenda is None else agenda:
+        if evento['GP'] == gp:
+            for nome, inicio in evento['Sessoes']:
+                if nome == sessao:
+                    return {'gp':gp, 'nome':nome, 'inicio':inicio,
+                            'ano':datetime.fromisoformat(inicio).year}
+    return None
+
+
+def aplicar_link_sessao_f1():
+    gp, sessao = st.query_params.get('f1_gp'), st.query_params.get('f1_sessao')
+    if gp is None and sessao is None:
+        return
+    destino = destino_sessao_f1(gp, sessao)
+    # Consome só os parâmetros desta navegação para não prender o usuário na aba.
+    for chave in ('f1_gp', 'f1_sessao'):
+        if chave in st.query_params:
+            del st.query_params[chave]
+    if destino:
+        st.session_state['navegacao'] = 'Fórmula 1'
+        st.session_state['f1_painel'] = 'GP do fim de semana'
+        st.session_state['f1_temporada'] = destino['ano']
+        st.session_state['f1_destino_sessao'] = destino
+
+
+def gp_destino_f1(gps, destino):
+    inicio = datetime.fromisoformat(destino['inicio']).astimezone(fuso_br)
+    # O meeting começa no início do fim de semana; recusa outra semana/temporada.
+    candidatos = [gp for gp in gps if timedelta(days=-1) <= inicio-data_sessao_f1(gp) <= timedelta(days=4)]
+    if len(candidatos) == 1:
+        return candidatos[0]['meeting_key']
+    return None
+
+
+COMPOSTOS_F1 = {'SOFT':'🔴 Macio', 'MEDIUM':'🟡 Médio', 'HARD':'⚪ Duro',
+                'INTERMEDIATE':'🟢 Intermediário', 'WET':'🔵 Chuva',
+                'UNKNOWN':'Não informado', 'TEST_UNKNOWN':'Teste / não informado'}
+
+
+def tabela_pneus_f1(stints, pilotos_sessao):
+    pilotos_por_numero = {str(p['driver_number']):p for p in pilotos_sessao}
+    linhas = []
+    for trecho in stints:
+        if trecho.get('driver_number') is None:
+            continue
+        numero = str(trecho['driver_number'])
+        piloto = pilotos_por_numero.get(numero, {})
+        composto = COMPOSTOS_F1.get(str(trecho.get('compound') or '').upper(), 'Não informado')
+        idade = trecho.get('tyre_age_at_start')
+        linhas.append({'Nº':numero,
+                       'Piloto':piloto.get('full_name') or piloto.get('broadcast_name') or f'Piloto #{numero}',
+                       'Trecho':trecho.get('stint_number'), 'Pneu':composto,
+                       'Volta inicial':trecho.get('lap_start'), 'Volta final':trecho.get('lap_end'),
+                       'Uso anterior (voltas)':idade,
+                       'Condição ao iniciar':'Novo' if idade == 0 else 'Usado' if isinstance(idade,(int,float)) and idade > 0 else 'Não informado'})
+    colunas = ['Nº','Piloto','Trecho','Pneu','Volta inicial','Volta final','Uso anterior (voltas)','Condição ao iniciar']
+    return pd.DataFrame(linhas, columns=colunas).sort_values(['Nº','Trecho'], kind='stable', na_position='last')
 
 
 def data_sessao_f1(registro):
@@ -3192,7 +3263,7 @@ def tempo_sessao_f1(valor, diferenca=False):
     return f'{minutos}:{segundos:02d}.{resto:03d}'
 
 
-def tabela_sessao_openf1(resultados, pilotos_sessao, nome_sessao):
+def tabela_sessao_openf1(resultados, pilotos_sessao, nome_sessao, pneus=None):
     pilotos_por_numero = {str(p['driver_number']): p for p in pilotos_sessao}
     classificacao = nome_sessao in ('Qualifying', 'Sprint Qualifying', 'Sprint Shootout')
     linhas = []
@@ -3215,6 +3286,9 @@ def tabela_sessao_openf1(resultados, pilotos_sessao, nome_sessao):
             coluna = 'Melhor volta' if nome_sessao.startswith('Practice') else 'Tempo total'
             linha[coluna] = tempo_sessao_f1(duracao)
             linha['Diferença para o líder'] = tempo_sessao_f1(r.get('gap_to_leader'), diferenca=True)
+        if pneus is not None:
+            compostos = pneus.loc[pneus['Nº'].eq(numero), 'Pneu'].drop_duplicates().tolist()
+            linha['Pneus usados na sessão'] = ' · '.join(compostos) if compostos else 'Não informado'
         linha['Voltas'] = r.get('number_of_laps')
         linha['Situação'] = next((sigla for sigla in ('dsq', 'dns', 'dnf') if r.get(sigla)), '').upper()
         linhas.append(linha)
@@ -3226,6 +3300,8 @@ def tela_gp_openf1(ano):
     st.caption('Horários de Brasília. Os resultados aparecem conforme a publicação pela fonte.')
     st.markdown('[Fonte: OpenF1](https://openf1.org/)')
     agora = agora_brasilia()
+    if st.session_state.get('f1_destino_sessao'):
+        st.button('Escolher outro GP ou sessão', on_click=lambda: st.session_state.pop('f1_destino_sessao', None), key='f1_cancelar_destino')
     try:
         gps = sorted(
             (gp for gp in consultar_sessoes_openf1('meetings', 'year', ano)
@@ -3243,7 +3319,14 @@ def tela_gp_openf1(ano):
             nome = gp['meeting_name'].removesuffix(' Grand Prix')
             return f"GP de {nome} · {data_sessao_f1(gp):%d/%m}"
 
-        gp_id = st.selectbox('Grande Prêmio', list(por_id), index=iniciado[-1] if iniciado else 0,
+        destino = st.session_state.get('f1_destino_sessao')
+        if destino:
+            alvo_gp = gp_destino_f1(gps, destino)
+            if alvo_gp is None:
+                st.info('O GP deste link ainda não foi encontrado na fonte. Tente consultar a atualização mais tarde.')
+                return
+            st.session_state[f'f1_gp_{ano}'] = alvo_gp
+        gp_id = st.selectbox('Grande Prêmio', list(por_id), index=0 if f'f1_gp_{ano}' in st.session_state else (iniciado[-1] if iniciado else 0),
                              format_func=rotulo_gp, key=f'f1_gp_{ano}')
         sessoes = sorted(
             (s for s in consultar_sessoes_openf1('sessions', 'meeting_key', gp_id)
@@ -3260,7 +3343,19 @@ def tela_gp_openf1(ano):
             sessao = por_sessao[chave]
             return f"{NOMES_SESSOES_F1[sessao['session_name']]} · {data_sessao_f1(sessao):%d/%m %H:%M}"
 
-        sessao_id = st.selectbox('Sessão', list(por_sessao), index=iniciadas[-1] if iniciadas else 0,
+        if destino:
+            nomes = [nome for nome, rotulo in NOMES_SESSOES_F1.items() if rotulo.casefold() == destino['nome'].casefold()]
+            # Nomes usados pelo calendário do bolão nos fins de semana Sprint.
+            nomes += {'Qualy Sprint':['Sprint Qualifying','Sprint Shootout'],
+                      'Classificação Sprint':['Sprint Qualifying','Sprint Shootout'],
+                      'Corrida Sprint':['Sprint']}.get(destino['nome'], [])
+            alvos = [s['session_key'] for s in sessoes if s['session_name'] in nomes]
+            if not alvos:
+                st.info('Esta sessão ainda não foi publicada para o GP selecionado. Consulte novamente mais tarde.')
+                return
+            st.session_state[f'f1_sessao_{gp_id}'] = alvos[0]
+            st.session_state.pop('f1_destino_sessao', None)
+        sessao_id = st.selectbox('Sessão', list(por_sessao), index=0 if f'f1_sessao_{gp_id}' in st.session_state else (iniciadas[-1] if iniciadas else 0),
                                  format_func=rotulo_sessao, key=f'f1_sessao_{gp_id}')
         sessao = por_sessao[sessao_id]
         if data_sessao_f1(sessao) > agora:
@@ -3275,8 +3370,19 @@ def tela_gp_openf1(ano):
         except (OSError, ValueError):
             pilotos_sessao = []
             st.caption('Cadastro de pilotos indisponível na fonte. A tabela usa os números dos carros.')
-        st.dataframe(tabela_sessao_openf1(resultados, pilotos_sessao, sessao['session_name']),
+        try:
+            pneus = tabela_pneus_f1(consultar_sessoes_openf1('stints', 'session_key', sessao_id), pilotos_sessao)
+        except (OSError, ValueError, KeyError, TypeError):
+            pneus = tabela_pneus_f1([], pilotos_sessao)
+        st.dataframe(tabela_sessao_openf1(resultados, pilotos_sessao, sessao['session_name'], pneus),
                      hide_index=True, use_container_width=True)
+        if pneus.empty:
+            st.caption('Dados de pneus ainda não disponíveis para esta sessão. O resultado permanece disponível acima.')
+        else:
+            st.caption('Pneus usados ao longo da sessão; não indicam necessariamente o pneu da melhor volta. Compostos conforme a fonte, sem inferir C1–C6.')
+            with st.expander('Pneus por piloto · trechos e voltas'):
+                st.dataframe(pneus, hide_index=True, use_container_width=True)
+                st.caption('Uso anterior: voltas que o pneu já tinha ao começar o trecho. Campos vazios não foram informados pela fonte.')
     except (OSError, ValueError, KeyError, TypeError):
         st.warning('O OpenF1 está indisponível ou retornou dados incompletos. Tente “Consultar atualização da F1” mais tarde.')
 
@@ -3329,6 +3435,7 @@ def tela_formula1():
 
 def main():
     st.set_page_config(page_title='Bolão F1 2026 · Na disputa',page_icon='🏁',layout='wide',initial_sidebar_state='collapsed')
+    aplicar_link_sessao_f1()
     menu = cabecalho()
     st.caption('🏁 Abra a lateral no canto superior esquerdo para consultar o manual de pontuação.')
     if not GITHUB_TOKEN and menu!='Fórmula 1':
