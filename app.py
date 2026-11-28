@@ -3177,7 +3177,7 @@ def consultar_sessoes_openf1(endpoint, parametro, valor):
     try:
         registros = _http_json_f1(f'{OPENF1_API}/{endpoint}?{parametro}={int(valor)}')
     except urllib.error.HTTPError as erro:
-        if erro.code == 404 and endpoint in ('session_result', 'stints', 'drivers'):
+        if erro.code == 404 and endpoint in ('session_result', 'stints', 'drivers', 'laps'):
             return []
         raise
     if not isinstance(registros, list) or any(not isinstance(r, dict) for r in registros):
@@ -3246,6 +3246,108 @@ def tabela_pneus_f1(stints, pilotos_sessao):
     return pd.DataFrame(linhas, columns=colunas).sort_values(['Nº','Trecho'], kind='stable', na_position='last')
 
 
+LIMITE_VOLTA_LENTA_F1 = 1.07   # voltas acima de 107% da melhor do piloto não entram no ritmo
+MIN_VOLTAS_DEGRADACAO_F1 = 4   # mínimo de voltas válidas para estimar degradação
+ORDEM_COMPOSTOS_F1 = list(COMPOSTOS_F1.values())
+
+
+def _inteiro_f1(valor):
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return None
+
+
+def voltas_por_pneu_f1(stints, voltas=None, voltas_finais=None):
+    """Uma linha por volta rodada, ligando cada volta ao pneu do trecho.
+
+    stints/voltas: registros do OpenF1. voltas_finais: {nº do carro: voltas completadas},
+    usado só quando o último trecho ainda não tem 'lap_end'. Sem 'voltas', as linhas
+    existem (contagem de voltas por pneu), mas sem tempos.
+    """
+    voltas_finais = voltas_finais or {}
+    registros, ultima_volta, ultimo_trecho = {}, {}, {}
+    for v in voltas or []:
+        d, n = _inteiro_f1(v.get('driver_number')), _inteiro_f1(v.get('lap_number'))
+        if d is not None and n is not None:
+            registros[(d, n)] = v
+            ultima_volta[d] = max(ultima_volta.get(d, 0), n)
+    for t in stints:
+        d, n = _inteiro_f1(t.get('driver_number')), _inteiro_f1(t.get('stint_number'))
+        if d is not None and n is not None:
+            ultimo_trecho[d] = max(ultimo_trecho.get(d, n), n)
+    linhas = []
+    for t in stints:
+        d, inicio = _inteiro_f1(t.get('driver_number')), _inteiro_f1(t.get('lap_start'))
+        if d is None or inicio is None:
+            continue
+        numero = _inteiro_f1(t.get('stint_number'))
+        fim = _inteiro_f1(t.get('lap_end'))
+        if fim is None and numero == ultimo_trecho.get(d):
+            fim = ultima_volta.get(d) or _inteiro_f1(voltas_finais.get(d))
+        if fim is None or fim < inicio:
+            continue
+        composto = COMPOSTOS_F1.get(str(t.get('compound') or '').upper(), 'Não informado')
+        entra_no_box = numero is not None and numero < ultimo_trecho.get(d, numero)
+        for volta in range(inicio, fim + 1):
+            r = registros.get((d, volta), {})
+            tempo = r.get('lap_duration')
+            linhas.append({'driver_number': d, 'Trecho': numero, 'Pneu': composto, 'Volta': volta,
+                           'Tempo': tempo if isinstance(tempo, (int, float)) and tempo > 0 else None,
+                           'Box': bool(r.get('is_pit_out_lap')) or (entra_no_box and volta == fim)})
+    df = pd.DataFrame(linhas, columns=['driver_number', 'Trecho', 'Pneu', 'Volta', 'Tempo', 'Box'])
+    df = df.drop_duplicates(['driver_number', 'Volta'], keep='last')
+    df['Tempo'] = pd.to_numeric(df['Tempo'], errors='coerce')
+    base = df['Tempo'].notna() & ~df['Box'].astype(bool) & (df['Volta'] > 1)
+    melhor = df['Tempo'].where(base).groupby(df['driver_number']).transform('min')
+    df['Válida'] = base & (df['Tempo'] <= melhor * LIMITE_VOLTA_LENTA_F1)
+    return df.sort_values(['driver_number', 'Volta']).reset_index(drop=True)
+
+
+def resumo_pneus_voltas_f1(voltas_pneu):
+    """{nº do carro (str): '🟡 Médio 18 · ⚪ Duro 32'} na ordem em que os pneus foram usados."""
+    resumo = {}
+    for d, g in voltas_pneu.groupby('driver_number'):
+        contagem = g.groupby('Pneu', sort=False)['Volta'].count()
+        resumo[str(d)] = ' · '.join(f'{pneu} {n}' for pneu, n in contagem.items())
+    return resumo
+
+
+def _inclinacao_f1(x, y):
+    dx = x - x.mean()
+    return float((dx * (y - y.mean())).sum() / (dx ** 2).sum())
+
+
+def tabela_desempenho_pneus_f1(voltas_pneu, pilotos_sessao, com_degradacao=True, ordem=None):
+    """Piloto x pneu: voltas, melhor volta, ritmo médio/mediana e degradação (s/volta)."""
+    colunas = ['Nº', 'Piloto', 'Pneu', 'Trechos', 'Voltas', 'Voltas válidas',
+               'Melhor volta', 'Ritmo médio', 'Mediana', 'Degradação (s/volta)']
+    pilotos_por_numero = {str(p['driver_number']): p for p in pilotos_sessao}
+    posicao = {str(n): i for i, n in enumerate(ordem or [])}
+    linhas = []
+    for (d, pneu), g in voltas_pneu.groupby(['driver_number', 'Pneu'], sort=False):
+        numero = str(d)
+        ok = g[g['Válida']]
+        degradacao = '—'
+        if com_degradacao and len(ok) >= MIN_VOLTAS_DEGRADACAO_F1 and ok['Volta'].nunique() > 1:
+            degradacao = f"{_inclinacao_f1(ok['Volta'], ok['Tempo']):+.3f}"
+        piloto = pilotos_por_numero.get(numero, {})
+        linhas.append({
+            'Nº': numero,
+            'Piloto': piloto.get('full_name') or piloto.get('broadcast_name') or f'Piloto #{numero}',
+            'Pneu': pneu, 'Trechos': g['Trecho'].nunique(), 'Voltas': len(g), 'Voltas válidas': len(ok),
+            'Melhor volta': tempo_sessao_f1(ok['Tempo'].min()) if len(ok) else '—',
+            'Ritmo médio': tempo_sessao_f1(ok['Tempo'].mean()) if len(ok) else '—',
+            'Mediana': tempo_sessao_f1(ok['Tempo'].median()) if len(ok) else '—',
+            'Degradação (s/volta)': degradacao,
+            '_o': (posicao.get(numero, 999), d, ORDEM_COMPOSTOS_F1.index(pneu) if pneu in ORDEM_COMPOSTOS_F1 else 99),
+        })
+    linhas.sort(key=lambda l: l['_o'])
+    for l in linhas:
+        del l['_o']
+    return pd.DataFrame(linhas, columns=colunas)
+
+
 def data_sessao_f1(registro):
     instante = datetime.fromisoformat(registro['date_start'].replace('Z', '+00:00'))
     return instante.astimezone(fuso_br)
@@ -3263,7 +3365,7 @@ def tempo_sessao_f1(valor, diferenca=False):
     return f'{minutos}:{segundos:02d}.{resto:03d}'
 
 
-def tabela_sessao_openf1(resultados, pilotos_sessao, nome_sessao, pneus=None):
+def tabela_sessao_openf1(resultados, pilotos_sessao, nome_sessao, pneus=None, resumo_voltas=None):
     pilotos_por_numero = {str(p['driver_number']): p for p in pilotos_sessao}
     classificacao = nome_sessao in ('Qualifying', 'Sprint Qualifying', 'Sprint Shootout')
     linhas = []
@@ -3288,7 +3390,7 @@ def tabela_sessao_openf1(resultados, pilotos_sessao, nome_sessao, pneus=None):
             linha['Diferença para o líder'] = tempo_sessao_f1(r.get('gap_to_leader'), diferenca=True)
         if pneus is not None:
             compostos = pneus.loc[pneus['Nº'].eq(numero), 'Pneu'].drop_duplicates().tolist()
-            linha['Pneus usados na sessão'] = ' · '.join(compostos) if compostos else 'Não informado'
+            linha['Pneus usados (voltas)'] = (resumo_voltas or {}).get(numero) or (' · '.join(compostos) if compostos else 'Não informado')
         linha['Voltas'] = r.get('number_of_laps')
         linha['Situação'] = next((sigla for sigla in ('dsq', 'dns', 'dnf') if r.get(sigla)), '').upper()
         linhas.append(linha)
@@ -3371,15 +3473,41 @@ def tela_gp_openf1(ano):
             pilotos_sessao = []
             st.caption('Cadastro de pilotos indisponível na fonte. A tabela usa os números dos carros.')
         try:
-            pneus = tabela_pneus_f1(consultar_sessoes_openf1('stints', 'session_key', sessao_id), pilotos_sessao)
+            stints = consultar_sessoes_openf1('stints', 'session_key', sessao_id)
+            pneus = tabela_pneus_f1(stints, pilotos_sessao)
         except (OSError, ValueError, KeyError, TypeError):
+            stints = []
             pneus = tabela_pneus_f1([], pilotos_sessao)
-        st.dataframe(tabela_sessao_openf1(resultados, pilotos_sessao, sessao['session_name'], pneus),
+        voltas, voltas_ok = [], True
+        if stints:
+            try:
+                voltas = consultar_sessoes_openf1('laps', 'session_key', sessao_id)
+            except (OSError, ValueError, KeyError, TypeError):
+                voltas_ok = False
+        try:
+            voltas_finais = {_inteiro_f1(r.get('driver_number')): r.get('number_of_laps') for r in resultados}
+            voltas_pneu = voltas_por_pneu_f1(stints, voltas, voltas_finais)
+        except (ValueError, KeyError, TypeError, AttributeError):
+            voltas_pneu = voltas_por_pneu_f1([], [])
+        st.dataframe(tabela_sessao_openf1(resultados, pilotos_sessao, sessao['session_name'], pneus,
+                                          resumo_pneus_voltas_f1(voltas_pneu)),
                      hide_index=True, use_container_width=True)
         if pneus.empty:
             st.caption('Dados de pneus ainda não disponíveis para esta sessão. O resultado permanece disponível acima.')
         else:
-            st.caption('Pneus usados ao longo da sessão; não indicam necessariamente o pneu da melhor volta. Compostos conforme a fonte, sem inferir C1–C6.')
+            st.caption('Pneus usados ao longo da sessão, com o número de voltas em cada um; não indicam necessariamente o pneu da melhor volta. Compostos conforme a fonte, sem inferir C1–C6.')
+            corrida = sessao['session_name'] in ('Race', 'Sprint')
+            with st.expander('Desempenho por pneu · voltas e ritmo', expanded=True):
+                ordem = [r.get('driver_number') for r in sorted(resultados, key=lambda r: int(r.get('position') or 999))]
+                st.dataframe(tabela_desempenho_pneus_f1(voltas_pneu, pilotos_sessao, corrida, ordem),
+                             hide_index=True, use_container_width=True)
+                if not voltas_ok or not voltas:
+                    st.caption('Tempos de volta indisponíveis na fonte no momento; mostrando apenas as voltas por pneu.')
+                st.caption('Ritmo considera só voltas válidas: sem a 1ª volta, saídas e chegadas do box e voltas acima de 107% da melhor do piloto (safety car, erros, tráfego).')
+                if corrida:
+                    st.caption('Degradação: variação do tempo por volta ao longo do trecho (positivo = pneu perdendo ritmo). O combustível queimado deixa o carro mais rápido, então o valor tende a subestimar o desgaste; compare pilotos na mesma corrida e ignore valores com poucas voltas.')
+                else:
+                    st.caption('Degradação só é calculada em corrida e sprint: nos treinos e na classificação a carga de combustível e o tipo de volta variam demais.')
             with st.expander('Pneus por piloto · trechos e voltas'):
                 st.dataframe(pneus, hide_index=True, use_container_width=True)
                 st.caption('Uso anterior: voltas que o pneu já tinha ao começar o trecho. Campos vazios não foram informados pela fonte.')
