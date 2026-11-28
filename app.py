@@ -197,7 +197,7 @@ def _ler_dados_remotos(arquivo):
     return df, data['sha']
 
 
-@st.cache_data(ttl=20, max_entries=8, show_spinner=False)
+@st.cache_data(ttl=20, max_entries=16, show_spinner=False)
 def _ler_dados_cache(arquivo):
     return _ler_dados_remotos(arquivo)
 
